@@ -1,0 +1,159 @@
+import json
+from datetime import *
+
+# temporary fix for dfcs and cards with " // " in name
+with open("Data/double_cards.json", "r") as fp:
+    dbls = json.load(fp)
+
+
+DATASET = "full_modern_dataset.json"
+# DATASET = "unicode_test.json"
+with open(DATASET, "r") as fp:
+    data = json.load(fp)
+
+def display_deck(decks=None):
+    """
+    decks: a list of decks to display. Generate using find_decks()
+
+    prints each decklist in a readable way
+    returns nothing
+    """
+    if decks is None:
+        decks = []
+
+    with open("Data/card_properties.json", "r") as fp:
+        card_properties = json.load(fp)
+    # TODO
+    # sort lands to front
+    # possibly sort by type
+
+    for deck in decks:
+        # VREY TEMPORARY FIX FOR LOTR accent cards - REPLACE IT WITH GIFTED AETHERBORN
+        broken_names = ['Troll of Khazad-dÃ»m', "LÃ³rien Revealed"]
+        for card in broken_names:
+
+            if card in deck['maindeck']:
+                deck['maindeck']['Gifted Aetherborn'] = deck['maindeck'][card]
+                del deck['maindeck'][card]
+
+            if card in deck['sideboard']:
+                deck['sideboard']['Gifted Aetherborn'] = deck['sideboard'][card]
+                del deck['sideboard'][card]
+        # troubleshooting end
+
+        print(deck['player'], deck['url'])
+
+
+
+        maindeck = sorted(deck['maindeck'].keys(), key=lambda x: card_properties[x]['cmc'])
+        sideboard = sorted(deck['sideboard'].keys(), key=lambda x: card_properties[x]['cmc'])
+
+        for card in maindeck:
+            print(f"{deck['maindeck'][card]} {card} - {card_properties[card]['mana_cost']}")
+        print("------ SIDEBOARD ------")
+        for card in sideboard:
+            print(f"{deck['sideboard'][card]} {card} - {card_properties[card]['mana_cost']}")
+        print("------ END OF DECK ------")
+
+def find_decks(whitelist=[], blacklist=[], player=None, min_date=date(2000, 1, 1), max_date=date(2100, 1, 1),
+               search_in=["maindeck", "sideboard"],
+               event_type=["league", "preliminary", "challenge", "showcase", "last", "qualifier"]):
+    """
+    whitelist: a list of cards that must be in the deck
+    blacklist: a list of cards that must NOT be in the deck
+    player: MTGO username
+    min_date: earliest decks to consider - use date(yyyy, mm, dd)
+    max_date: most recent decks to consider - use date(yyyy, mm, dd)
+    search_in: specify to search in maindeck and/or sideboard
+    event_type: List of types of MTGO events to consider
+
+
+
+    returns list of dicts that represent each deck from the dataset that matches all criteria
+    """
+
+    #this white/blacklist checker probably has redundant/inefficient parts
+    found_decks = []
+    decks_in_period = []  # For "% of all decks" feature
+    for decklist in data:
+        deck_date = decklist['date'].split("-")
+        deck_date = date(int(deck_date[-3]), int(deck_date[-2]), int(deck_date[-1][:2]))
+        if min_date <= deck_date <= max_date:
+            decks_in_period.append(decklist)
+    for decklist in decks_in_period:
+        if player:
+            if player.lower() not in decklist["player"].lower():
+                continue
+
+        if not decklist['url'].split("-")[1] in event_type:
+            continue
+        matched_cards = []
+        blacklisted_cards = []
+        for location in search_in:
+            for card in decklist[location]:
+                for b in blacklist:
+                    if b in card:
+                        blacklisted_cards.append(card)
+                for w in whitelist:
+                    if w in card:  # Allow for partial matches with abbreviated names. ex. Fable of the gets mirror-breaker ...
+                        matched_cards.append(card)
+        if len(matched_cards) == len(whitelist) and len(blacklisted_cards) == 0:
+            found_decks.append(decklist)
+    print(f'{len(decks_in_period)} decks considered in period')
+    print(f'{len(found_decks)} decks apply, {(len(found_decks) / len(decks_in_period)) * 100:.2f}% of all decks')
+    return found_decks
+
+
+def find_card_prevalence(sample=None, search_in=["maindeck", "sideboard"]):
+    """
+    sample: a list of all decklists to consider. Generate using find_decks()
+    search_in: specify to search in maindeck/sidebooard
+
+    prints how many copies of each card exist in the sample, as well as % of decks the card is in. Split into maindeck
+    on top and sideboard below
+    returns nothing
+    """
+    if sample is None:
+        sample = []
+    # It is good practice to avoid using mutable default values if you may possible be changing the value through .append, etc.
+
+    #sample is a list of dicts representing decks
+    num_decks = len(sample)
+    prev_dict_main = {}
+    # {card: [# of decks, # cards played]}
+    prev_dict_side = {}
+    for deck in sample:
+        if "maindeck" in search_in:
+            for card in deck["maindeck"]:
+                if card in prev_dict_main:
+                    prev_dict_main[card][0] = prev_dict_main[card][0] + 1
+                    prev_dict_main[card][1] = prev_dict_main[card][1] + deck["maindeck"][card]
+                else:
+                    prev_dict_main[card] = [1, deck["maindeck"][card]]
+        if "sideboard" in search_in:
+            for card in deck["sideboard"]:
+                if card in prev_dict_side:
+                    prev_dict_side[card][0] = prev_dict_side[card][0] + 1
+                    prev_dict_side[card][1] = prev_dict_side[card][1] + deck["sideboard"][card]
+                else:
+                    prev_dict_side[card] = [1, deck["sideboard"][card]]
+
+    print(f'{len(prev_dict_main)} MD cards')
+    for card, quantity in sorted(prev_dict_main.items(), key=lambda x: x[1][0], reverse=True):
+        #returns tuple (card, [# of decks, # of cards])
+
+        print(f"{card} - {quantity[0]} - {((quantity[0] / num_decks) * 100):.2f}% - {(quantity[1] / quantity[0]):.2f} average # played ")
+    print("\n---SIDEBOARD---\n")
+    print(f'{len(prev_dict_side)} SB cards')
+    for card, quantity in sorted(prev_dict_side.items(), key=lambda x: x[1][0], reverse=True):
+        print(f"{card} - {quantity[0]} - {((quantity[0] / num_decks) * 100):.2f}% - {(quantity[1] / quantity[0]):.2f} average # played ")
+
+if __name__ == "__main__":
+
+    # Example:
+    find_card_prevalence(find_decks(min_date=date(2023, 12, 4),
+                                    whitelist=["The Rack"],
+                                    event_type=["preliminary", "challenge", "showcase", "last", "qualifier"]))
+
+
+
