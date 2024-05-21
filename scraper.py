@@ -11,7 +11,7 @@ from datetime import *
 
 import chromedriver_autoinstaller
 
-OUTPUT_FILE = "Data/2024_Decks.json"
+OUTPUT_FILE = "Data/full_modern.json"
 
 chromedriver_autoinstaller.install()
 chrome_options = Options()
@@ -24,8 +24,8 @@ except selenium.common.exceptions.SessionNotCreatedException as e:
     raise e
 
 # Get dict of DFCs and split cards, so they can be made consistent with scryfall formatting later
-with open("Data/double_cards.json", "r") as fp:
-    double_cards = json.load(fp)  # {first/front card: full card name}
+with open("Data/double_cards.json", "r") as f:
+    double_cards = json.load(f)  # {first/front card: full card name}
 
 def update_card_properties():
     # get link to most recent bulk data file from Scryfall
@@ -46,15 +46,15 @@ def update_card_properties():
                 out[c['name']] = {'mana_cost': 'None', 'cmc': 0, 'url': c['scryfall_uri'], 'oracle': 'flip card',
                                   'type': 'flip card'}
 
-    with open("Data/card_properties.json", "w") as fp:
-        json.dump(out, fp)
+    with open("Data/card_properties.json", "w") as f:
+        json.dump(out, f)
 
     double_cards = {}  # Cards with 2 names separated by " // " DFCs, split, fuse, etc. {first half: full name}
     for k in out.keys():
         if " // " in k and k.split(" // ")[0] != k.split(" // ")[1]:
             double_cards[k.split(" // ")[0]] = k
-    with open("Data/double_cards.json", "w") as fp:
-        json.dump(double_cards, fp)
+    with open("Data/double_cards.json", "w") as f:
+        json.dump(double_cards, f)
     print("successfully updated card properties dataset from Scryfall")
 
 
@@ -66,7 +66,7 @@ def scrape_urls(urls):
     returns nothing
     """
 
-    if urls = []:
+    if not urls:
         return
 
     errored_urls = []
@@ -75,7 +75,7 @@ def scrape_urls(urls):
         print("Gathering decks from:", url)
         try:
             driver.get(url)
-            wait = WebDriverWait(driver, 30)
+            wait = WebDriverWait(driver, 20)
             wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'decklist')))
             content = driver.find_elements(By.CLASS_NAME, 'decklist')
         except selenium.common.exceptions.TimeoutException:
@@ -129,15 +129,15 @@ def scrape_urls(urls):
         if not path.isfile(OUTPUT_FILE):
             content = output # The only content will be what was just scraped
         else:
-            with open(OUTPUT_FILE, "r") as fp:
-                content = json.load(fp)
+            with open(OUTPUT_FILE, "r") as f:
+                content = json.load(f)
                 for deck_dict in output:
                     content.append(deck_dict)
-        with open(OUTPUT_FILE, "w") as fp:
-            json.dump(content, fp, default=str)
+        with open(OUTPUT_FILE, "w") as f:
+            json.dump(content, f, default=str)
 
         with open("Data/scraped_urls.txt", "a") as f:
-            f.write(url)
+            f.write("\n" + url)
 
     if len(errored_urls) == 0:
         return
@@ -157,7 +157,7 @@ def find_new_urls(url="https://www.mtgo.com/decklists/?filter=Modern"):
 
     try:
         driver.get(url)
-        wait = WebDriverWait(driver, 30)
+        wait = WebDriverWait(driver, 20)
         wait.until(EC.presence_of_element_located((By.PARTIAL_LINK_TEXT, 'Modern')))
     except selenium.common.exceptions.TimeoutException:
         print(f"Unable to find urls from {url}. Try again")
@@ -182,8 +182,4 @@ def scrape_historical_urls(dates):
     for date in dates:
         scrape_urls(urls=find_new_urls(f"https://www.mtgo.com/decklists/{date}?filter=Modern"))
 
-# update_card_properties() # This only needs to run when a new set releases
 # scrape_urls(find_new_urls())
-dates = ['2024/01', '2024/02', '2024/03','2024/04','2024/05']
-scrape_historical_urls(dates)
-
