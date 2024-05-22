@@ -2,27 +2,25 @@ import json
 from datetime import *
 
 # temporary fix for dfcs and cards with " // " in name
-with open("Data/double_cards.json", "r") as fp:
-    dbls = json.load(fp)
+# with open("Data/double_cards.json", "r") as f:
+#     doubles = json.load(f)
 
 
 DATASET = "full_modern_dataset.json"
-# DATASET = "unicode_test.json"
-with open(DATASET, "r") as fp:
-    data = json.load(fp)
+with open(DATASET, "r") as f:
+    data = json.load(f)
 
 def display_deck(decks=None):
     """
     decks: a list of decks to display. Generate using find_decks()
-
     prints each decklist in a readable way
     returns nothing
     """
     if decks is None:
         decks = []
 
-    with open("Data/card_properties.json", "r") as fp:
-        card_properties = json.load(fp)
+    with open("Data/card_properties.json", "r") as f:
+        card_properties = json.load(f)
     # TODO
     # sort lands to front
     # possibly sort by type
@@ -57,13 +55,13 @@ def display_deck(decks=None):
 
 def find_decks(whitelist=[], blacklist=[], player=None, min_date=date(2000, 1, 1), max_date=date(2100, 1, 1),
                search_in=["maindeck", "sideboard"],
-               event_type=["league", "preliminary", "challenge", "showcase", "last", "qualifier"]):
+               event_type=["league", "scheduled"]):
     """
     whitelist: a list of cards that must be in the deck
     blacklist: a list of cards that must NOT be in the deck
     player: MTGO username
-    min_date: earliest decks to consider - use date(yyyy, mm, dd)
-    max_date: most recent decks to consider - use date(yyyy, mm, dd)
+    min_date: earliest decks to consider - use datetme module: date(yyyy, mm, dd)
+    max_date: most recent decks to consider - use datetme module: date(yyyy, mm, dd)
     search_in: specify to search in maindeck and/or sideboard
     event_type: List of types of MTGO events to consider
 
@@ -85,7 +83,15 @@ def find_decks(whitelist=[], blacklist=[], player=None, min_date=date(2000, 1, 1
             if player.lower() not in decklist["player"].lower():
                 continue
 
-        if not decklist['url'].split("-")[1] in event_type:
+        event_keywords = []
+        EVENT_TYPES = {"league": ["league", "daily-swiss"],
+                       "scheduled": ["prelim", "challenge", "ptq", "championship", "qualifier", "playoff", "finals", "last-chance"]}
+
+        for k, v in EVENT_TYPES.items():
+            if k in event_type:
+                event_keywords += v
+
+        if not decklist['url'].split("-")[1] in event_keywords:
             continue
         matched_cards = []
         blacklisted_cards = []
@@ -115,13 +121,14 @@ def find_card_prevalence(sample=None, search_in=["maindeck", "sideboard"]):
     """
     if sample is None:
         sample = []
-    # It is good practice to avoid using mutable default values if you may possible be changing the value through .append, etc.
 
     #sample is a list of dicts representing decks
     num_decks = len(sample)
-    prev_dict_main = {}
+
     # {card: [# of decks, # cards played]}
+    prev_dict_main = {}
     prev_dict_side = {}
+
     for deck in sample:
         if "maindeck" in search_in:
             for card in deck["maindeck"]:
@@ -153,7 +160,7 @@ if __name__ == "__main__":
     # Example:
     find_card_prevalence(find_decks(min_date=date(2023, 12, 4),
                                     whitelist=["The Rack"],
-                                    event_type=["preliminary", "challenge", "showcase", "last", "qualifier"]))
+                                    event_type=["scheduled"]))
 
 
 
