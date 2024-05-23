@@ -1,21 +1,17 @@
 import json
 from datetime import *
+from typing import Union, Optional
 
 # temporary fix for dfcs and cards with " // " in name
 # with open("Data/double_cards.json", "r") as f:
 #     doubles = json.load(f)
 
-def load_dataset(dataset):
+def load_dataset(dataset: str) -> list[dict[str, Union[str, dict[str, int]]]]:
+    # The dataset is a list of dictionaries, each of which represents 1 deck entry
     with open(dataset, "r") as f:
-        global data
-        data = json.load(f)
+        return json.load(f)
 
-def display_decks(decks=None):
-    """
-    decks: a list of decks to display. Generate using find_decks()
-    converts each decklist to a human-readable string
-    returns a string formatted to be readable
-    """
+def display_decks(decks: list[dict[str, Union[str, dict[str, int]]]] | None) -> str:
     if decks is None:
         decks = []
 
@@ -35,7 +31,7 @@ def display_decks(decks=None):
             if card in deck['sideboard']:
                 deck['sideboard']['Gifted Aetherborn'] = deck['sideboard'][card]
                 del deck['sideboard'][card]
-        # end of temporary troubleshooting code
+        # end of temporary fix code
 
         output += f"\n {deck['player']} {deck['url']}"
         try:
@@ -61,21 +57,28 @@ def display_decks(decks=None):
         output += "\n------ END OF DECK ------"
     return output
 
-def find_decks(whitelist=[], blacklist=[], player=None, min_date=date(2000, 1, 1), max_date=date(2100, 1, 1),
-               search_in=["maindeck", "sideboard"],
-               event_type=["league", "scheduled"]):
+def find_decks(whitelist: Optional[list[str]] = None,
+               blacklist: Optional[list[str]] = None,
+               player: Optional[str | None] = None,
+               min_date: Optional[datetime.date] = date(1900, 1, 1),
+               max_date: Optional[datetime.date] = date(2100, 1, 1),
+               search_in: Optional[list[str]] = None,
+               event_type: Optional[list[str]] = None) -> list[dict[str, Union[str, dict[str, int]]]]:
     """
-    whitelist: a list of cards that must be in the deck
-    blacklist: a list of cards that must NOT be in the deck
-    player: MTGO username
-    min_date: earliest decks to consider - use datetme module: date(yyyy, mm, dd)
-    max_date: most recent decks to consider - use datetme module: date(yyyy, mm, dd)
-    search_in: specify to search in maindeck and/or sideboard
-    event_type: List of types of MTGO events to consider
-    returns list of dicts that represent each deck from the dataset that matches all criteria
+    Gathers all decks matching criteria
+    Outputs them in the same format as they appear in the dataset
     """
 
-    #this white/blacklist checker probably has redundant/inefficient parts
+    # Handle unspecified parameters instead of using default mutable parameters
+    if whitelist is None:
+        whitelist = []
+    if blacklist is None:
+        blacklist = []
+    if search_in is None:
+        search_in = ["maindeck", "sideboard"]
+    if event_type is None:
+        event_type = ["league", "scheduled"]
+
     found_decks = []
     decks_in_period = []  # For "% of all decks" feature
     for decklist in data:
@@ -88,6 +91,7 @@ def find_decks(whitelist=[], blacklist=[], player=None, min_date=date(2000, 1, 1
             if player.lower() not in decklist["player"].lower():
                 continue
 
+        # Get keywords that define event types to classify decklists by based on the chosen deck type categories
         event_keywords = []
         EVENT_TYPES = {"league": ["league", "daily-swiss"],
                        "scheduled": ["prelim", "challenge", "ptq", "championship", "qualifier", "playoff", "finals", "last-chance"]}
@@ -115,58 +119,62 @@ def find_decks(whitelist=[], blacklist=[], player=None, min_date=date(2000, 1, 1
     return found_decks
 
 
-def find_card_prevalence(sample=None, search_in=["maindeck", "sideboard"]):
+def find_card_prevalence(sample: list[dict[str, Union[str, dict[str, int]]]], search_in: Optional[list[str]] = None):
     """
-    sample: a list of all decklists to consider. Generate using find_decks()
-    search_in: specify to search in maindeck/sidebooard
+    Calculates the prevalence of each card across all decks in sample and lists them in this order
+    sample parameter should be passed from find_decks()
+    Output looks like:
 
-    creates string that tells how many copies of each card exist in the sample, as well as % of decks the card is in. Split into maindeck
-    on top and sideboard below
-    returns a string formatted to be readable
+    Most prevalent maindeck card - # copies in sample - % of decks it appears in - Average # played in decks it appeared in
+    ...
+
+    ---SIDEBOARD---
+
+    Most prevalent sideboard card - # copies in sample - % of decks it appears in - Average # played in decks it appeared in
+    ...
     """
-    if sample is None:
-        sample = []
+    if not sample:
+        return "No decks in sample"
 
-    #sample is a list of dicts representing decks
+    if search_in is None:
+        search_in = ["maindeck", "sideboard"]
+
     num_decks = len(sample)
-
-    # {card: [# of decks, # cards played]}
-    prev_dict_main = {}
-    prev_dict_side = {}
+    prevalence_dict_main = {}
+    prevalence_dict_side = {}
 
     for deck in sample:
         if "maindeck" in search_in:
             for card in deck["maindeck"]:
-                if card in prev_dict_main:
-                    prev_dict_main[card][0] = prev_dict_main[card][0] + 1
-                    prev_dict_main[card][1] = prev_dict_main[card][1] + deck["maindeck"][card]
+                if card in prevalence_dict_main:
+                    prevalence_dict_main[card][0] = prevalence_dict_main[card][0] + 1
+                    prevalence_dict_main[card][1] = prevalence_dict_main[card][1] + deck["maindeck"][card]
                 else:
-                    prev_dict_main[card] = [1, deck["maindeck"][card]]
+                    prevalence_dict_main[card] = [1, deck["maindeck"][card]]
         if "sideboard" in search_in:
             for card in deck["sideboard"]:
-                if card in prev_dict_side:
-                    prev_dict_side[card][0] = prev_dict_side[card][0] + 1
-                    prev_dict_side[card][1] = prev_dict_side[card][1] + deck["sideboard"][card]
+                if card in prevalence_dict_side:
+                    prevalence_dict_side[card][0] = prevalence_dict_side[card][0] + 1
+                    prevalence_dict_side[card][1] = prevalence_dict_side[card][1] + deck["sideboard"][card]
                 else:
-                    prev_dict_side[card] = [1, deck["sideboard"][card]]
+                    prevalence_dict_side[card] = [1, deck["sideboard"][card]]
 
 
     output = ""
-    # output += f'{len(prev_dict_main)} Unique maindeck cards found'
-    for card, quantity in sorted(prev_dict_main.items(), key=lambda x: x[1][0], reverse=True):
+    # output += f'{len(prevalence_dict_main)} Unique maindeck cards found'
+    for card, quantity in sorted(prevalence_dict_main.items(), key=lambda x: x[1][0], reverse=True):
         #returns tuple (card, [# of decks, # of cards])
         output += f"\n{card} - {quantity[0]} - {((quantity[0] / num_decks) * 100):.2f}% - {(quantity[1] / quantity[0]):.2f} average # played "
     output += "\n\n---SIDEBOARD---\n"
-    for card, quantity in sorted(prev_dict_side.items(), key=lambda x: x[1][0], reverse=True):
+    for card, quantity in sorted(prevalence_dict_side.items(), key=lambda x: x[1][0], reverse=True):
         output += f"\n{card} - {quantity[0]} - {((quantity[0] / num_decks) * 100):.2f}% - {(quantity[1] / quantity[0]):.2f} average # played "
     return output
 
 if __name__ == "__main__":
-    load_dataset("Data/full_modern.json")
+    data = load_dataset("Data/full_modern.json")
 
     # Example:
     print(find_card_prevalence(find_decks(min_date=date(2023, 12, 4),
-                                    whitelist=["The Rack"],
-                                    event_type=["scheduled"])))
-
+                                          whitelist=["The Rack"],
+                                          event_type=["scheduled"])))
 

@@ -3,23 +3,25 @@ from tkinter import ttk
 from tkinter import scrolledtext
 from tkinter.filedialog import askopenfilename
 from tkcalendar import DateEntry
+
 import card_analyzer as ca
 from datetime import date
 from dateutil.relativedelta import relativedelta
+from typing import Union
 
-dataset_file = "Data/2024_Decks.json" #TODO Set Default
-ca.load_dataset(dataset_file)
+dataset_file = "Data/2024_Decks.json"  # TODO Set Default
+global dataset
+dataset = ca.load_dataset(dataset_file)
 
 deck_search_params = {"whitelist": [], "blacklist": [], "player": None, "min_date": date(2000, 1, 1),
                       "max_date": date(2100, 1, 1), "search_in": ["maindeck", "sideboard"],
                       "event_type": ["league", "scheduled"]}
 
-def choose_file():
-    global dataset_file
+def choose_file() -> None:
     dataset_file = askopenfilename()
-    ca.load_dataset(dataset_file)
+    dataset = ca.load_dataset(dataset_file)
 
-def comma_separated_input_parser(input):
+def comma_separated_input_parser(input: str) -> list[str]:
     if input == "":
         return []
     input = input.title()
@@ -29,12 +31,17 @@ def comma_separated_input_parser(input):
     else:
         return input.split(",")
 
-def update_output(text):
+def update_output(text: str) -> None:
     output_textbox.config(state="normal")
     output_textbox.insert(1.0, text)
     output_textbox.config(state="disabled")
 
-def query_decks():
+def query_decks() -> list[dict[str, Union[str, dict[str, int]]]]:
+    """
+    Update query parameters with current gui state and use ca.find_decks() to get all relevant decks
+    This is called by the Analyze Decks and Show Decks buttons, which pass it to other fucntions from CA to format it
+    :return: the output list of dictionaries from find_decks()
+    """
     # Set which part of deck to search in
     if not (search_sideboard.get() + search_maindeck.get()) % 2 == 0:
         if search_maindeck.get() == 0:

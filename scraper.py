@@ -4,8 +4,9 @@ from selenium.webdriver.common.by import By  # wait
 from selenium.webdriver.support.ui import WebDriverWait  # wait
 from selenium.webdriver.support import expected_conditions as EC  # wait
 from selenium.webdriver.chrome.options import Options  # headless
+
 import json
-import requests # For the scryfall API
+import requests  # For the Scryfall API
 from os import path
 from datetime import *
 
@@ -23,11 +24,15 @@ except selenium.common.exceptions.SessionNotCreatedException as e:
     print("Issue with ChromeDriver, cannot create Selenium Session")
     raise e
 
-# Get dict of DFCs and split cards, so they can be made consistent with scryfall formatting later
+# Get dict of DFCs and split cards, so they can be made consistent with Scryfall formatting later
 with open("Data/double_cards.json", "r") as f:
-    double_cards = json.load(f)  # {first/front card: full card name}
+    double_cards = json.load(f)  # formatted like: {first/front card: full card name}
 
-def update_card_properties():
+def update_card_properties() -> None:
+    """
+    Calls the Scryfall API to update the local list of all card names and CMCs
+    """
+
     # get link to most recent bulk data file from Scryfall
     re = requests.get("https://scryfall.com/docs/api/bulk-data")
     temp_page_loc = re.text.split("Oracle Cards")[1]
@@ -58,19 +63,17 @@ def update_card_properties():
     print("successfully updated card properties dataset from Scryfall")
 
 
-def scrape_urls(urls):
+def scrape_urls(urls: list[str]) -> None:
     """
-    urls: list of urls to be scraped - get using find_new_urls()
-
+    Scrapes all given urls from www.mtgo.com/decklists/... to extract deck information
     writes to the output_file information in json format: payer name, url of event, event date, maindeck, sideboard
-    returns nothing
+    Adds all urls successfully scraped to Data/scraped_urls.txt
     """
 
     if not urls:
         return
 
     errored_urls = []
-
     for url in urls:
         print("Gathering decks from:", url)
         try:
@@ -101,18 +104,18 @@ def scrape_urls(urls):
                     if t in d[i]:
                         break
                 else:
+                    # Check if the card is a split card/DFC
                     quantity = d[i].split(" ", 1)[0]
                     card = d[i].split(" ", 1)[1]
-                    # Check if the card is a split card/DFC
 
-                    # Fix character issues that show up in weird langauges
+
+                    # Fix non-English character issues
+                    # Note: edge cases with non-English characters are currently being investigated as some behave oddly
                     unicode_issues = {"Ã\x86": "Ae", "\u00c3\u00b3": "\u00f3"}
-                    # can this be fixed with r'str' or something?
                     for k in unicode_issues.keys():
                         if k in card:
                             card.replace(k, unicode_issues[k])
 
-                    # card = card.replace("Ã\x86", "Ae")  # AE symbol gets messed up - looks like "\u00c3\u0086" in output
                     if "/" in card:
                         card = card.split("/")[0]
                     for double in double_cards.keys():
@@ -127,7 +130,7 @@ def scrape_urls(urls):
             output.append(deck)
 
         if not path.isfile(OUTPUT_FILE):
-            content = output # The only content will be what was just scraped
+            content = output  # The only content will be what was just scraped
         else:
             with open(OUTPUT_FILE, "r") as f:
                 content = json.load(f)
@@ -147,10 +150,10 @@ def scrape_urls(urls):
         print(url)
     print("End of errors")
 
-def find_new_urls(url="https://www.mtgo.com/decklists/?filter=Modern"):
+def find_new_urls(url: str = "https://www.mtgo.com/decklists/?filter=Modern") -> list[str]:
     """
-    input url: "https://www.mtgo.com/decklists/yyyy/mm?filter=Modern"" - date optional - note: changed by Daybreak 12/2023
-    return urls for all events in month that have not already been scraped
+    Gets each event url from a page with all events from a month that has not yet been scraped
+    The url can be more specific with an optional date: "https://www.mtgo.com/decklists/yyyy/mm?filter=Modern"
     """
     found_urls = []
     confirmed_new_urls = []
@@ -172,14 +175,15 @@ def find_new_urls(url="https://www.mtgo.com/decklists/?filter=Modern"):
         for url in found_urls:
             if url not in previously_scraped_urls:
                 confirmed_new_urls.append(url)
-    return confirmed_new_urls[::-1]  #reverse order to preserve chronology - no functional purpose
+    return confirmed_new_urls[::-1]  # reverse order to preserve chronology - no functional purpose
 
-def scrape_historical_urls(dates):
+def scrape_historical_urls(dates: list[str]):
     """
-    For going through multiple urls in a  list at once
-    input should be list like ['yyyy/mm', 'yyyy/mm']
+    Scrape several months at once
+    input should be dates like ['yyyy/mm', 'yyyy/mm']
     """
     for date in dates:
         scrape_urls(urls=find_new_urls(f"https://www.mtgo.com/decklists/{date}?filter=Modern"))
 
-# scrape_urls(find_new_urls())
+if __name__ == "__main__":
+    scrape_urls(find_new_urls())
