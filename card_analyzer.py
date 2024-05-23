@@ -57,7 +57,8 @@ def display_decks(decks: list[dict[str, Union[str, dict[str, int]]]] | None) -> 
         output += "\n------ END OF DECK ------"
     return output
 
-def find_decks(whitelist: Optional[list[str]] = None,
+def find_decks(dataset: list[dict[str, Union[str, dict[str, int]]]],
+               whitelist: Optional[list[str]] = None,
                blacklist: Optional[list[str]] = None,
                player: Optional[str | None] = None,
                min_date: Optional[datetime.date] = date(1900, 1, 1),
@@ -81,7 +82,7 @@ def find_decks(whitelist: Optional[list[str]] = None,
 
     found_decks = []
     decks_in_period = []  # For "% of all decks" feature
-    for decklist in data:
+    for decklist in dataset:
         deck_date = decklist['date'].split("-")
         deck_date = date(int(deck_date[-3]), int(deck_date[-2]), int(deck_date[-1][:2]))
         if min_date <= deck_date <= max_date:
@@ -171,10 +172,11 @@ def find_card_prevalence(sample: list[dict[str, Union[str, dict[str, int]]]], se
     return output
 
 if __name__ == "__main__":
-    data = load_dataset("Data/full_modern.json")
+    dataset = load_dataset("Data/full_modern.json")
 
     # Example:
-    print(find_card_prevalence(find_decks(min_date=date(2023, 12, 4),
+    print(find_card_prevalence(find_decks(dataset=dataset,
+                                          min_date=date(2023, 12, 4),
                                           whitelist=["The Rack"],
                                           event_type=["scheduled"])))
 

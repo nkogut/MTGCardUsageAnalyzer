@@ -33,6 +33,7 @@ def comma_separated_input_parser(input: str) -> list[str]:
 
 def update_output(text: str) -> None:
     output_textbox.config(state="normal")
+    output_textbox.delete(1.0, tk.END)
     output_textbox.insert(1.0, text)
     output_textbox.config(state="disabled")
 
@@ -61,8 +62,13 @@ def query_decks() -> list[dict[str, Union[str, dict[str, int]]]]:
         deck_search_params["event_type"] = ["league", "scheduled"]
 
     # Set the date range
-    deck_search_params["min_date"] = min_date_selector.get_date()
-    deck_search_params["max_date"] = max_date_selector.get_date()
+    min_date = min_date_selector.get_date()
+    max_date = max_date_selector.get_date()
+    if min_date > max_date:
+        update_output("End date is before start date")
+        return
+    deck_search_params["min_date"] = min_date
+    deck_search_params["max_date"] = max_date
 
     # Set whitelist/blacklist
     deck_search_params["whitelist"] = comma_separated_input_parser(whitelist_textbox.get(1.0, "end-1c"))
@@ -75,7 +81,7 @@ def query_decks() -> list[dict[str, Union[str, dict[str, int]]]]:
     else:
         deck_search_params["player"] = player_input
 
-    return ca.find_decks(*deck_search_params.values())
+    return ca.find_decks(dataset, *deck_search_params.values())
 
 # Window setup
 root = tk.Tk()
