@@ -65,7 +65,7 @@ def scrape_urls(urls: list[str]) -> None:
     """
     Scrapes all given urls from www.mtgo.com/decklists/... to extract deck information
     writes to the output_file information in json format: payer name, url of event, event date, maindeck, sideboard
-    Adds all urls successfully scraped to Data/scraped_urls.txt
+    Adds all urls successfully scraped to Data/scraped_urls_NAMEOFOUTPUTFILE.txt
     """
 
     if not urls:
@@ -91,7 +91,8 @@ def scrape_urls(urls: list[str]) -> None:
             deck_date = date(int(deck_date[-3]), int(deck_date[-2]), int(deck_date[-1][:2]))
             player = d[0]
             deck = {"player": player, "url": url, 'date': deck_date, "maindeck": {}, "sideboard": {}}
-            card_type_separators = ["Creature", "Land", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Tribal", "Cards", "Other", "Rarity"]
+            card_type_separators = ["Creature", "Land", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker",
+                                    "Tribal", "Cards", "Other", "Rarity"]
 
             md = True
             for i in range(9, len(d)):
@@ -105,7 +106,6 @@ def scrape_urls(urls: list[str]) -> None:
                     # Check if the card is a split card/DFC
                     quantity = d[i].split(" ", 1)[0]
                     card = d[i].split(" ", 1)[1]
-
 
                     # Fix non-English character issues
                     # Note: edge cases with non-English characters are currently being investigated as some behave oddly
@@ -137,7 +137,7 @@ def scrape_urls(urls: list[str]) -> None:
         with open(output_file, "w") as f:
             json.dump(content, f, default=str)
 
-        with open("Data/scraped_urls.txt", "a") as f:
+        with open("Data/scraped_urls_" + output_file.split("/")[-1].split(".")[0] + ".txt", "a") as f:
             f.write("\n" + url)
 
     if len(errored_urls) == 0:
@@ -151,7 +151,7 @@ def scrape_urls(urls: list[str]) -> None:
 def find_new_urls(format: str, date: str = "") -> list[str]:
     """
     Gets each event url from a page with all events from a month that has not yet been scraped
-    The url can be more specific with an optional date: "https://www.mtgo.com/decklists/yyyy/mm?filter=Modern"
+    The date should have the format "yyyy/mm"
     """
     url = f"https://www.mtgo.com/decklists/{date}?filter={format.title()}"
     found_urls = []
@@ -169,22 +169,22 @@ def find_new_urls(format: str, date: str = "") -> list[str]:
         found_urls.append(l.get_attribute("href"))
 
     # Check new scraped urls against previously scraped urls
-    with open("Data/scraped_urls.txt", "r") as f:
+    with open("Data/scraped_urls_" + output_file.split("/")[-1].split(".")[0] + ".txt", "r") as f:
         previously_scraped_urls = f.read()
         for url in found_urls:
             if url not in previously_scraped_urls:
                 confirmed_new_urls.append(url)
     return confirmed_new_urls[::-1]  # reverse order to preserve chronology - no functional purpose
 
-def scrape_historical_urls(dates: list[str]):
+def scrape_historical_urls(format: str, dates: list[str]):
     """
     Scrape several months at once
     input should be dates like ['yyyy/mm', 'yyyy/mm']
     """
     for date in dates:
-        scrape_urls(urls=find_new_urls(f"https://www.mtgo.com/decklists/{date}?filter=Modern"))
+        scrape_urls(find_new_urls(format, date))
 
 if __name__ == "__main__":
     # Example
-    output_file = "Data/full_modern.json"
+    output_file = "Data/2024_Decks.json"
     scrape_urls(find_new_urls("Modern"))
