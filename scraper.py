@@ -12,8 +12,6 @@ from datetime import *
 
 import chromedriver_autoinstaller
 
-OUTPUT_FILE = "Data/full_modern.json"
-
 chromedriver_autoinstaller.install()
 chrome_options = Options()
 chrome_options.add_argument("--headless")
@@ -129,14 +127,14 @@ def scrape_urls(urls: list[str]) -> None:
                         deck["sideboard"][card] = int(quantity)
             output.append(deck)
 
-        if not path.isfile(OUTPUT_FILE):
+        if not path.isfile(output_file):
             content = output  # The only content will be what was just scraped
         else:
-            with open(OUTPUT_FILE, "r") as f:
+            with open(output_file, "r") as f:
                 content = json.load(f)
                 for deck_dict in output:
                     content.append(deck_dict)
-        with open(OUTPUT_FILE, "w") as f:
+        with open(output_file, "w") as f:
             json.dump(content, f, default=str)
 
         with open("Data/scraped_urls.txt", "a") as f:
@@ -150,11 +148,12 @@ def scrape_urls(urls: list[str]) -> None:
         print(url)
     print("End of errors")
 
-def find_new_urls(url: str = "https://www.mtgo.com/decklists/?filter=Modern") -> list[str]:
+def find_new_urls(format: str, date: str = "") -> list[str]:
     """
     Gets each event url from a page with all events from a month that has not yet been scraped
     The url can be more specific with an optional date: "https://www.mtgo.com/decklists/yyyy/mm?filter=Modern"
     """
+    url = f"https://www.mtgo.com/decklists/{date}?filter={format.title()}"
     found_urls = []
     confirmed_new_urls = []
 
@@ -186,4 +185,6 @@ def scrape_historical_urls(dates: list[str]):
         scrape_urls(urls=find_new_urls(f"https://www.mtgo.com/decklists/{date}?filter=Modern"))
 
 if __name__ == "__main__":
-    scrape_urls(find_new_urls())
+    # Example
+    output_file = "Data/full_modern.json"
+    scrape_urls(find_new_urls("Modern"))
