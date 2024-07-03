@@ -1,0 +1,16 @@
+[project]
+name = "mtg-card-usage-analyzer"
+description = "Find MTG card usage in specific deck types"
+requires-python = ">=3.11"
+dynamic = ["version"]
+dependencies = [
+    "requests>=2.32.2",
+    "selenium>=4.21.0",
+    "tkcalendar>=1.6.1",
+    "matplotlib>=3.9.0",
+    "numpy>=2.0.0",
+    "python-dateutil>=2.9.0",
+]
+readme = "README.md"
+keywords = ["Magic: The Gathering", "MTG", "MTGO"]
+authors = [{name = "Nick Kogut", email="nkogut4444@gmail.com"}]
