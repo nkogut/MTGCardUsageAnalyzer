@@ -2,16 +2,18 @@ import json
 from datetime import *
 from typing import Union, Optional
 
+DATASET_CHUNK_TYPE = list[dict[str, Union[str, dict[str, int]]]]
+
 # temporary fix for dfcs and cards with " // " in name
 # with open("Data/double_cards.json", "r") as f:
 #     doubles = json.load(f)
 
-def load_dataset(dataset: str) -> list[dict[str, Union[str, dict[str, int]]]]:
+def load_dataset(dataset: str) -> DATASET_CHUNK_TYPE:
     # The dataset is a list of dictionaries, each of which represents 1 deck entry
     with open(dataset, "r") as f:
         return json.load(f)
 
-def display_decks(decks: list[dict[str, Union[str, dict[str, int]]]] | None) -> str:
+def display_decks(decks: DATASET_CHUNK_TYPE | None) -> str:
     if decks is None:
         decks = []
 
@@ -57,14 +59,14 @@ def display_decks(decks: list[dict[str, Union[str, dict[str, int]]]] | None) -> 
         output += "\n------ END OF DECK ------"
     return output
 
-def find_decks(dataset: list[dict[str, Union[str, dict[str, int]]]],
+def find_decks(dataset: DATASET_CHUNK_TYPE,
                whitelist: Optional[list[str]] = None,
                blacklist: Optional[list[str]] = None,
                player: Optional[str | None] = None,
                min_date: Optional[datetime.date] = date(1900, 1, 1),
                max_date: Optional[datetime.date] = date(2100, 1, 1),
                search_in: Optional[list[str]] = None,
-               event_type: Optional[list[str]] = None) -> list[dict[str, Union[str, dict[str, int]]]]:
+               event_type: Optional[list[str]] = None) -> DATASET_CHUNK_TYPE:
     """
     Gathers all decks matching criteria
     Outputs them in the same format as they appear in the dataset
@@ -120,7 +122,7 @@ def find_decks(dataset: list[dict[str, Union[str, dict[str, int]]]],
     return found_decks
 
 
-def find_card_prevalence(sample: list[dict[str, Union[str, dict[str, int]]]], search_in: Optional[list[str]] = None):
+def find_card_prevalence(sample: DATASET_CHUNK_TYPE, search_in: Optional[list[str]] = None):
     """
     Calculates the prevalence of each card across all decks in sample and lists them in this order
     sample parameter should be passed from find_decks()
