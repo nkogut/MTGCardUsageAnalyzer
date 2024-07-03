@@ -3,14 +3,16 @@ from tkinter import ttk
 from tkinter import scrolledtext
 from tkinter.filedialog import askopenfilename
 from tkcalendar import DateEntry
-
-import card_analyzer as ca
 from datetime import date
 from dateutil.relativedelta import relativedelta
 from typing import Union
+import card_analyzer as ca
+import data_visualization as dv
+import card_groups
 
-dataset_file = "Data/2024_Decks.json"  # TODO Set Default
-global dataset
+DEFAULT_DATASET_FILE = "Data/2024_Decks.json"
+
+dataset_file = DEFAULT_DATASET_FILE
 dataset = ca.load_dataset(dataset_file)
 
 deck_search_params = {"whitelist": [], "blacklist": [], "player": None, "min_date": date(2000, 1, 1),
@@ -37,11 +39,10 @@ def update_output(text: str) -> None:
     output_textbox.insert(1.0, text)
     output_textbox.config(state="disabled")
 
-def query_decks() -> list[dict[str, Union[str, dict[str, int]]]]:
+def update_deck_search_params() -> None:
     """
     Update query parameters with current gui state and use ca.find_decks() to get all relevant decks
-    This is called by the Analyze Decks and Show Decks buttons, which pass it to other fucntions from CA to format it
-    :return: the output list of dictionaries from find_decks()
+    This is called by the "Analyze Decks", "Show Decks" and "Generate Chart" buttons, which pass it to other functions from CA to format it
     """
     # Set which part of deck to search in
     if not (search_sideboard.get() + search_maindeck.get()) % 2 == 0:
@@ -74,13 +75,29 @@ def query_decks() -> list[dict[str, Union[str, dict[str, int]]]]:
     deck_search_params["whitelist"] = comma_separated_input_parser(whitelist_textbox.get(1.0, "end-1c"))
     deck_search_params["blacklist"] = comma_separated_input_parser(blacklist_textbox.get(1.0, "end-1c"))
 
-    #Set Player
+    # Set Player
     player_input = player_textbox.get(1.0, "end-1c")
     if player_input == "":
         deck_search_params["player"] = None
     else:
         deck_search_params["player"] = player_input
 
+def generate_chart() -> None:
+    update_deck_search_params()
+    input_chart_cards = comma_separated_input_parser(chart_cards_textbox.get(1.0, "end-1c"))
+    if not input_chart_cards:
+        # Use dropdown
+        dv.create_line_chart(event_type=deck_search_params["event_type"],
+                             cards=card_groups.CARD_GROUP_DICT[chart_dropdown.get()],
+                             decks_considered=ca.find_decks(dataset, *deck_search_params.values()))
+    else:
+        # Use text input
+        dv.create_line_chart(event_type=deck_search_params["event_type"],
+                             cards=input_chart_cards,
+                             decks_considered=ca.find_decks(dataset, *deck_search_params.values()))
+
+def query_decks() -> list[dict[str, Union[str, dict[str, int]]]]:
+    update_deck_search_params()
     return ca.find_decks(dataset, *deck_search_params.values())
 
 # Window setup
@@ -150,6 +167,24 @@ blacklist_textbox.grid(row=2, column=1)
 player_label.grid(row=3, column=0)
 player_textbox.grid(row=3, column=1)
 
+
+# Chart selection
+chart_menu = tk.Frame(root)
+generate_chart_button = ttk.Button(chart_menu, text="Generate Chart", command=generate_chart)
+chart_cards_custom_label = tk.Label(chart_menu, text="Optional - Chart these cards in the selected data sample")
+chart_cards_preset_label = tk.Label(chart_menu, text="Or choose a preset group")
+chart_dropdown = tk.StringVar()
+chart_dropdown.set(list(card_groups.CARD_GROUP_DICT.keys())[0])
+chart_cards_dropdown = tk.OptionMenu(chart_menu, chart_dropdown, *card_groups.CARD_GROUP_DICT.keys())
+chart_cards_textbox = tk.Text(chart_menu, height=1, width=25)
+
+chart_cards_custom_label.grid(row=0, column=0)
+chart_cards_textbox.grid(row=0, column=1)
+generate_chart_button.grid(row=0, column=2)
+chart_cards_preset_label.grid(row=1, column=0)
+chart_cards_dropdown.grid(row=1, column=1)
+
+
 # Output
 output_textbox = scrolledtext.ScrolledText(root, state="disabled", width=80, height=10, wrap=tk.WORD)
 
@@ -162,7 +197,8 @@ event_type_menu.grid(row=1, column=1)
 text_input_menu.grid(row=2, columnspan=2)
 analyze_decks_button.grid(row=3, column=0)
 show_decks_button.grid(row=3, column=1)
-output_textbox.grid(row=4, columnspan=2)
+chart_menu.grid(row=4, columnspan=2)
+output_textbox.grid(row=6, columnspan=2)
 
 
 # Draw window
