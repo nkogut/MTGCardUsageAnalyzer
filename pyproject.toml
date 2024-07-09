@@ -1,6 +1,6 @@
 [project]
 name = "mtg-card-usage-analyzer"
-description = "Find MTG card usage in specific deck types"
+description = "Highly specific search tools and scraper for discovering how and why Magic: the Gathering decks run specific cards in a given metagame."
 requires-python = ">=3.11"
 dynamic = ["version"]
 dependencies = [
@@ -12,5 +12,5 @@ dependencies = [
     "python-dateutil>=2.9.0",
 ]
 readme = "README.md"
-keywords = ["Magic: The Gathering", "MTG", "MTGO"]
+keywords = ["Magic: The Gathering", "MTG", "MTGO", "Deckbuilding"]
 authors = [{name = "Nick Kogut", email="nkogut4444@gmail.com"}]
