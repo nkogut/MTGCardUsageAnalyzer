@@ -82,7 +82,7 @@ def create_line_chart(decks_considered: ca.DATASET_CHUNK_TYPE,
             x, y = find_ind_freq(card=c, event_type=event_type, decks_considered=decks_considered, search_in=search_in)
             x, y = zip(*sorted(zip(x, y)))
         except ValueError:
-            print("Value error line 73 - probably mistyped a card name")
+            pass
 
         plt.plot(x, y, label=c)
 
@@ -94,7 +94,7 @@ def create_line_chart(decks_considered: ca.DATASET_CHUNK_TYPE,
 
 if __name__ == "__main__":
     # sample chart
-    create_line_chart(event_type=["preliminary", "challenge", "showcase", "last", "qualifier"],
+    create_line_chart(event_type=["league"],
                       cards=card_groups.MODERN_METAGAME_5_2024,
                       decks_considered=ca.find_decks(dataset=ca.load_dataset("Data/full_modern.json"), min_date=date(2022, 1, 1)))
 

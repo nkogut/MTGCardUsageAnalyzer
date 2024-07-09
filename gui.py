@@ -10,7 +10,7 @@ import card_analyzer as ca
 import data_visualization as dv
 import card_groups
 
-DEFAULT_DATASET_FILE = "Data/2024_Decks.json"
+DEFAULT_DATASET_FILE = "Data/full_modern.json"
 
 dataset_file = DEFAULT_DATASET_FILE
 dataset = ca.load_dataset(dataset_file)
@@ -70,6 +70,8 @@ def update_deck_search_params() -> None:
         return
     deck_search_params["min_date"] = min_date
     deck_search_params["max_date"] = max_date
+    print(min_date)
+    print(max_date)
 
     # Set whitelist/blacklist
     deck_search_params["whitelist"] = comma_separated_input_parser(whitelist_textbox.get(1.0, "end-1c"))
@@ -85,16 +87,18 @@ def update_deck_search_params() -> None:
 def generate_chart() -> None:
     update_deck_search_params()
     input_chart_cards = comma_separated_input_parser(chart_cards_textbox.get(1.0, "end-1c"))
+    print(deck_search_params)
     if not input_chart_cards:
         # Use dropdown
-        dv.create_line_chart(event_type=deck_search_params["event_type"],
-                             cards=card_groups.CARD_GROUP_DICT[chart_dropdown.get()],
-                             decks_considered=ca.find_decks(dataset, *deck_search_params.values()))
+        dv.create_line_chart(decks_considered=ca.find_decks(dataset, *deck_search_params.values()),
+                             event_type=deck_search_params["event_type"],
+                             cards=card_groups.CARD_GROUP_DICT[chart_dropdown.get()])
     else:
         # Use text input
-        dv.create_line_chart(event_type=deck_search_params["event_type"],
-                             cards=input_chart_cards,
-                             decks_considered=ca.find_decks(dataset, *deck_search_params.values()))
+        dv.create_line_chart(decks_considered=ca.find_decks(dataset, *deck_search_params.values()),
+                             event_type=deck_search_params["event_type"],
+                             cards=input_chart_cards)
+
 
 def query_decks() -> list[dict[str, Union[str, dict[str, int]]]]:
     update_deck_search_params()
@@ -170,8 +174,8 @@ player_textbox.grid(row=3, column=1)
 
 # Chart selection
 chart_menu = tk.Frame(root)
-generate_chart_button = ttk.Button(chart_menu, text="Generate Chart", command=generate_chart)
-chart_cards_custom_label = tk.Label(chart_menu, text="Optional - Chart these cards in the selected data sample")
+generate_chart_button = ttk.Button(chart_menu, text="Generate Historical Graph", command=generate_chart)
+chart_cards_custom_label = tk.Label(chart_menu, text="Optional - Graph the prevalence of these cards:")
 chart_cards_preset_label = tk.Label(chart_menu, text="Or choose a preset group")
 chart_dropdown = tk.StringVar()
 chart_dropdown.set(list(card_groups.CARD_GROUP_DICT.keys())[0])

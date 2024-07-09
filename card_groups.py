@@ -32,11 +32,11 @@ MH2_ELEMENTALS = ["Solitude", "Subtlety", "Grief", "Fury", "Endurance"]
 
 
 # Store these lists in a gui so they can be accessed easily via the GUI
-CARD_GROUP_DICT: dict[str: list[str]] = {"Shocklands": SHOCKLANDS,
+CARD_GROUP_DICT: dict[str: list[str]] = {"Modern Metagame 5-2024 (Pre-MH3)": MODERN_METAGAME_5_2024,
+                                         "Modern Metagame 7-2024 (Post-MH3)": MODERN_METAGAME_7_2024,
+                                         "Shocklands": SHOCKLANDS,
                                          "Fetchlands": FETCHLANDS,
                                          "Basic Lands": BASIC_LANDS,
-                                         "Modern Metagame 5-2024 (Pre-MH3)": MODERN_METAGAME_5_2024,
-                                         "Modern Metagame 7-2024 (Post-MH3)": MODERN_METAGAME_7_2024,
                                          "Modern Exile Removal": MODERN_EXILE_REMOVAL,
                                          "Modern ALl Creature Removal": MODERN_ALL_CREATURE_REMOVAL,
                                          "Modern Artifact Hate": MODERN_ARTIFACT_HATE,
