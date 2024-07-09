@@ -1,12 +1,11 @@
 import selenium.common.exceptions
-from selenium import webdriver  # basic selenium
-from selenium.webdriver.common.by import By  # wait
-from selenium.webdriver.support.ui import WebDriverWait  # wait
-from selenium.webdriver.support import expected_conditions as EC  # wait
-from selenium.webdriver.chrome.options import Options  # headless
-
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
 import json
-import requests  # For the Scryfall API
+import requests
 from os import path
 from datetime import *
 
@@ -92,7 +91,7 @@ def scrape_urls(urls: list[str]) -> None:
             player = d[0]
             deck = {"player": player, "url": url, 'date': deck_date, "maindeck": {}, "sideboard": {}}
             card_type_separators = ["Creature", "Land", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker",
-                                    "Tribal", "Cards", "Other", "Rarity"]
+                                    "Tribal", "Typal", "Cards", "Other", "Rarity"]
 
             md = True
             for i in range(9, len(d)):
@@ -174,7 +173,7 @@ def find_new_urls(format: str, date: str = "") -> list[str]:
         for url in found_urls:
             if url not in previously_scraped_urls:
                 confirmed_new_urls.append(url)
-    return confirmed_new_urls[::-1]  # reverse order to preserve chronology - no functional purpose
+    return confirmed_new_urls[::-1]  # reverse order to preserve chronology
 
 def scrape_historical_urls(format: str, dates: list[str]):
     """
