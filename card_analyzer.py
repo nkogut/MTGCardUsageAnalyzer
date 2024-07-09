@@ -4,10 +4,6 @@ from typing import Union, Optional
 
 DATASET_CHUNK_TYPE = list[dict[str, Union[str, dict[str, int]]]]
 
-# temporary fix for dfcs and cards with " // " in name
-# with open("Data/double_cards.json", "r") as f:
-#     doubles = json.load(f)
-
 def load_dataset(dataset: str) -> DATASET_CHUNK_TYPE:
     # The dataset is a list of dictionaries, each of which represents 1 deck entry
     with open(dataset, "r") as f:
@@ -22,7 +18,8 @@ def display_decks(decks: DATASET_CHUNK_TYPE | None) -> str:
     output = ""
 
     for deck in decks:
-        # VERY TEMPORARY FIX FOR LOTR accent cards - REPLACE IT WITH GIFTED AETHERBORN
+        # For non-english characters that are represented differently on different mtgo.com pages: replace with a safe
+        # card name in the rare case that some are stored inconsistently in older versions of the database
         broken_names = ['Troll of Khazad-dÃ»m', "LÃ³rien Revealed"]
         for card in broken_names:
 
@@ -33,14 +30,13 @@ def display_decks(decks: DATASET_CHUNK_TYPE | None) -> str:
             if card in deck['sideboard']:
                 deck['sideboard']['Gifted Aetherborn'] = deck['sideboard'][card]
                 del deck['sideboard'][card]
-        # end of temporary fix code
 
         output += f"\n {deck['player']} {deck['url']}"
         try:
             maindeck = sorted(deck['maindeck'].keys(), key=lambda x: card_properties[x]['cmc'])
             sideboard = sorted(deck['sideboard'].keys(), key=lambda x: card_properties[x]['cmc'])
         except KeyError:
-            # Investigating why this happens. If an error occurs, just display the deck without sorting by CMC
+            # If an error occurs (rare), just display the deck without sorting by CMC
             pass
 
         for card in maindeck:
@@ -48,14 +44,12 @@ def display_decks(decks: DATASET_CHUNK_TYPE | None) -> str:
                 output += f"\n{deck['maindeck'][card]} {card} - {card_properties[card]['mana_cost']}"
             except KeyError:
                 output += f"\n{card} - error retrieving CMC or quantity"
-                # Investigating why this happens. If an error occurs, display without CMC or quantity
         output += "\n------ SIDEBOARD ------"
         for card in sideboard:
             try:
                 output += f"\n{deck['sideboard'][card]} {card} - {card_properties[card]['mana_cost']}"
             except KeyError:
                 output += f"\n{card} - error retrieving CMC or quantity"
-                # Investigating why this happens. If an error occurs, display without CMC or quantity
         output += "\n------ END OF DECK ------"
     return output
 
@@ -117,8 +111,6 @@ def find_decks(dataset: DATASET_CHUNK_TYPE,
                         matched_cards.append(card)
         if len(matched_cards) == len(whitelist) and len(blacklisted_cards) == 0:
             found_decks.append(decklist)
-    # print(f'{len(decks_in_period)} decks considered in period')
-    # print(f'{len(found_decks)} decks apply, {(len(found_decks) / len(decks_in_period)) * 100:.2f}% of all decks in dataset')
     return found_decks
 
 
@@ -127,14 +119,7 @@ def find_card_prevalence(sample: DATASET_CHUNK_TYPE, search_in: Optional[list[st
     Calculates the prevalence of each card across all decks in sample and lists them in this order
     sample parameter should be passed from find_decks()
     Output looks like:
-
-    Most prevalent maindeck card - # copies in sample - % of decks it appears in - Average # played in decks it appeared in
-    ...
-
-    ---SIDEBOARD---
-
-    Most prevalent sideboard card - # copies in sample - % of decks it appears in - Average # played in decks it appeared in
-    ...
+    Most prevalent card - # copies in sample - % of decks it appears in - Average # played in decks it appeared in
     """
     if not sample:
         return "No decks in sample"
@@ -162,11 +147,8 @@ def find_card_prevalence(sample: DATASET_CHUNK_TYPE, search_in: Optional[list[st
                 else:
                     prevalence_dict_side[card] = [1, deck["sideboard"][card]]
 
-
     output = ""
-    # output += f'{len(prevalence_dict_main)} Unique maindeck cards found'
     for card, quantity in sorted(prevalence_dict_main.items(), key=lambda x: x[1][0], reverse=True):
-        #returns tuple (card, [# of decks, # of cards])
         output += f"\n{card} - {quantity[0]} - {((quantity[0] / num_decks) * 100):.2f}% - {(quantity[1] / quantity[0]):.2f} average # played "
     output += "\n\n---SIDEBOARD---\n"
     for card, quantity in sorted(prevalence_dict_side.items(), key=lambda x: x[1][0], reverse=True):
@@ -177,8 +159,8 @@ if __name__ == "__main__":
     dataset = load_dataset("Data/full_modern.json")
 
     # Example:
-    print(find_card_prevalence(find_decks(dataset=dataset,
-                                          min_date=date(2023, 12, 4),
-                                          whitelist=["The Rack"],
-                                          event_type=["scheduled"])))
+    # print(find_card_prevalence(find_decks(dataset=dataset,
+    #                                       min_date=date(2023, 12, 4),
+    #                                       whitelist=["The Rack"],
+    #                                       event_type=["scheduled"])))
 
