@@ -10,7 +10,7 @@ import card_analyzer as ca
 import data_visualization as dv
 import card_groups
 
-DEFAULT_DATASET_FILE = "Data/full_modern.json"
+DEFAULT_DATASET_FILE = "Data/2025_Decks.json"
 
 dataset_file = DEFAULT_DATASET_FILE
 dataset = ca.load_dataset(dataset_file)
@@ -70,8 +70,6 @@ def update_deck_search_params() -> None:
         return
     deck_search_params["min_date"] = min_date
     deck_search_params["max_date"] = max_date
-    print(min_date)
-    print(max_date)
 
     # Set whitelist/blacklist
     deck_search_params["whitelist"] = comma_separated_input_parser(whitelist_textbox.get(1.0, "end-1c"))

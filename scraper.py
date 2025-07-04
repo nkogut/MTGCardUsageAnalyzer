@@ -168,11 +168,14 @@ def find_new_urls(format: str, date: str = "") -> list[str]:
         found_urls.append(l.get_attribute("href"))
 
     # Check new scraped urls against previously scraped urls
-    with open("Data/scraped_urls_" + output_file.split("/")[-1].split(".")[0] + ".txt", "r") as f:
-        previously_scraped_urls = f.read()
-        for url in found_urls:
-            if url not in previously_scraped_urls:
-                confirmed_new_urls.append(url)
+    try:
+        with open("Data/scraped_urls_" + output_file.split("/")[-1].split(".")[0] + ".txt", "r") as f:
+            previously_scraped_urls = f.read()
+    except FileNotFoundError:
+        previously_scraped_urls = ""
+    for url in found_urls:
+        if url not in previously_scraped_urls:
+            confirmed_new_urls.append(url)
     return confirmed_new_urls[::-1]  # reverse order to preserve chronology
 
 def scrape_historical_urls(format: str, dates: list[str]):
@@ -185,5 +188,7 @@ def scrape_historical_urls(format: str, dates: list[str]):
 
 if __name__ == "__main__":
     # Example
-    output_file = "Data/2024_Decks.json"
-    scrape_urls(find_new_urls("Modern"))
+    update_card_properties()
+    output_file = "Data/2025_Decks.json"
+    # scrape_urls(find_new_urls("Modern", "2025/07"))
+    scrape_historical_urls("Modern", ["2025/01", "2025/02", "2025/03", "2025/04", "2025/05", "2025/06", "2025/07"])

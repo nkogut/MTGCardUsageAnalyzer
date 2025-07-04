@@ -6,6 +6,7 @@ DATASET_CHUNK_TYPE = list[dict[str, Union[str, dict[str, int]]]]
 
 def load_dataset(dataset: str) -> DATASET_CHUNK_TYPE:
     # The dataset is a list of dictionaries, each of which represents 1 deck entry
+    print(dataset)
     with open(dataset, "r") as f:
         return json.load(f)
 
@@ -36,8 +37,9 @@ def display_decks(decks: DATASET_CHUNK_TYPE | None) -> str:
             maindeck = sorted(deck['maindeck'].keys(), key=lambda x: card_properties[x]['cmc'])
             sideboard = sorted(deck['sideboard'].keys(), key=lambda x: card_properties[x]['cmc'])
         except KeyError:
-            # If an error occurs (rare), just display the deck without sorting by CMC
-            pass
+            # The card_properties dataset is out of date
+            maindeck =deck['maindeck']
+            sideboard = deck['sideboard']
 
         for card in maindeck:
             try:
@@ -90,7 +92,7 @@ def find_decks(dataset: DATASET_CHUNK_TYPE,
 
         # Get keywords that define event types to classify decklists by based on the chosen deck type categories
         event_keywords = []
-        EVENT_TYPES = {"league": ["league", "daily-swiss"],
+        EVENT_TYPES = {"league": ["league", "daily-swiss", "gold"],
                        "scheduled": ["prelim", "challenge", "ptq", "championship", "qualifier", "playoff", "finals", "last-chance"]}
 
         for k, v in EVENT_TYPES.items():
@@ -99,6 +101,7 @@ def find_decks(dataset: DATASET_CHUNK_TYPE,
 
         if not decklist['url'].split("-")[1] in event_keywords:
             continue
+
         matched_cards = []
         blacklisted_cards = []
         for location in search_in:
