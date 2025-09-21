@@ -8,12 +8,14 @@ import json
 import requests
 from os import path
 from datetime import *
+from typing import Optional
 
 import chromedriver_autoinstaller
 
 chromedriver_autoinstaller.install()
 chrome_options = Options()
 chrome_options.add_argument("--headless")
+chrome_options.add_argument("--log-level=3")
 
 try:
     driver = webdriver.Chrome(options=chrome_options)
@@ -21,14 +23,15 @@ except selenium.common.exceptions.SessionNotCreatedException as e:
     print("Issue with ChromeDriver, cannot create Selenium Session")
     raise e
 
-# Get dict of DFCs and split cards, so they can be made consistent with Scryfall formatting later
-with open("Data/double_cards.json", "r") as f:
-    double_cards = json.load(f)  # formatted like: {first/front card: full card name}
-
-def update_card_properties() -> None:
+def update_card_properties(max_format: str) -> None:
     """
     Calls the Scryfall API to update the local list of all card names and CMCs
     """
+
+    if max_format == None:
+        max_format = "vintage"
+    else:
+        max_format = max_format.lower()
 
     # get link to most recent bulk data file from Scryfall
     re = requests.get("https://scryfall.com/docs/api/bulk-data")
@@ -40,7 +43,7 @@ def update_card_properties() -> None:
 
     out = {}
     for c in re.json():
-        if c['legalities']['modern'] in ['legal', 'banned']:
+        if c['legalities'][max_format] in ['legal', 'banned']:
             try:
                 out[c['name']] = {'mana_cost': c['mana_cost'], 'cmc': int(c['cmc']), 'url': c['scryfall_uri'],
                                   'oracle': c['oracle_text'], 'type': c['type_line']}
@@ -60,7 +63,7 @@ def update_card_properties() -> None:
     print("successfully updated card properties dataset from Scryfall")
 
 
-def scrape_urls(urls: list[str]) -> None:
+def scrape_urls(datasetFile: str, urls: list[str]) -> None:
     """
     Scrapes all given urls from www.mtgo.com/decklists/... to extract deck information
     writes to the output_file information in json format: payer name, url of event, event date, maindeck, sideboard
@@ -70,7 +73,13 @@ def scrape_urls(urls: list[str]) -> None:
     if not urls:
         return
 
+    # Get dict of DFCs and split cards, so they can be made consistent with Scryfall formatting later
+    with open("Data/double_cards.json", "r") as f:
+        double_cards = json.load(f)  # formatted like: {first/front card: full card name}
+
+    scraped_urls = []
     errored_urls = []
+    output = []
     for url in urls:
         print("Gathering decks from:", url)
         try:
@@ -78,11 +87,12 @@ def scrape_urls(urls: list[str]) -> None:
             wait = WebDriverWait(driver, 20)
             wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'decklist')))
             content = driver.find_elements(By.CLASS_NAME, 'decklist')
+            scraped_urls.append(url)
         except selenium.common.exceptions.TimeoutException:
             errored_urls.append(url)
             continue
 
-        output = []
+        # output = []
         for decklist in content:
             d = decklist.text
             d = d.split("\n")
@@ -126,28 +136,30 @@ def scrape_urls(urls: list[str]) -> None:
                         deck["sideboard"][card] = int(quantity)
             output.append(deck)
 
-        if not path.isfile(output_file):
-            content = output  # The only content will be what was just scraped
-        else:
-            with open(output_file, "r") as f:
-                content = json.load(f)
-                for deck_dict in output:
-                    content.append(deck_dict)
-        with open(output_file, "w") as f:
-            json.dump(content, f, default=str)
+    if path.isfile(datasetFile):
+        with open(datasetFile, "r") as f:
+            existingContent = json.load(f)
+            output = existingContent + output
+            # for deck_dict in output:
+            #     output.append(deck_dict) # can we direclty append these 2 lists instead?
+    with open(datasetFile, "w") as f:
+        json.dump(output, f, default=str)
 
-        with open("Data/scraped_urls_" + output_file.split("/")[-1].split(".")[0] + ".txt", "a") as f:
-            f.write("\n" + url)
+    urlFileName = "Data/scraped_urls_" + datasetFile.split("/")[-1].split(".")[0] + ".txt"
+    with open(urlFileName, "a") as f:
+        urlStr = "\n" + "\n".join(scraped_urls)
+        f.write(urlStr)
 
     if len(errored_urls) == 0:
         return
 
-    print("URLS That through errors and need to be run again:")
+    print("\nURLS That weren't reached and should be run again:")
     for url in errored_urls:
         print(url)
-    print("End of errors")
+    print()
 
-def find_new_urls(format: str, date: str = "") -> list[str]:
+
+def find_new_urls(datasetFile: str, format: str, date: str = "") -> list[str]:
     """
     Gets each event url from a page with all events from a month that has not yet been scraped
     The date should have the format "yyyy/mm"
@@ -159,17 +171,18 @@ def find_new_urls(format: str, date: str = "") -> list[str]:
     try:
         driver.get(url)
         wait = WebDriverWait(driver, 20)
-        wait.until(EC.presence_of_element_located((By.PARTIAL_LINK_TEXT, 'Modern')))
+        wait.until(EC.presence_of_element_located((By.PARTIAL_LINK_TEXT, format)))
     except selenium.common.exceptions.TimeoutException:
         print(f"Unable to find urls from {url}. Try again")
         return []
-    content = driver.find_elements(By.PARTIAL_LINK_TEXT, 'Modern')
+    content = driver.find_elements(By.PARTIAL_LINK_TEXT, format)
     for l in content:
         found_urls.append(l.get_attribute("href"))
 
-    # Check new scraped urls against previously scraped urls
+    # Skip urls that have already been scraped
     try:
-        with open("Data/scraped_urls_" + output_file.split("/")[-1].split(".")[0] + ".txt", "r") as f:
+        urlFileName = "Data/scraped_urls_" + datasetFile.split("/")[-1].split(".")[0] + ".txt"
+        with open(urlFileName, "r") as f:
             previously_scraped_urls = f.read()
     except FileNotFoundError:
         previously_scraped_urls = ""
@@ -178,17 +191,43 @@ def find_new_urls(format: str, date: str = "") -> list[str]:
             confirmed_new_urls.append(url)
     return confirmed_new_urls[::-1]  # reverse order to preserve chronology
 
-def scrape_historical_urls(format: str, dates: list[str]):
+def scrape_months(datasetFile: str, format: str, skip: bool, grace: Optional[int] = 7, start_date: Optional[str] = None, end_date: Optional[str] = None) -> None:
     """
-    Scrape several months at once
-    input should be dates like ['yyyy/mm', 'yyyy/mm']
+    Scrape one or more months of data for one format, and add data to datasetFile
+    date inputs should be like 'yyyy/mm'
     """
-    for date in dates:
-        scrape_urls(find_new_urls(format, date))
 
-if __name__ == "__main__":
-    # Example
-    update_card_properties()
-    output_file = "Data/2025_Decks.json"
-    # scrape_urls(find_new_urls("Modern", "2025/07"))
-    scrape_historical_urls("Modern", ["2025/01", "2025/02", "2025/03", "2025/04", "2025/05", "2025/06", "2025/07"])
+    if not skip:
+        update_card_properties(format)
+
+    format = format.capitalize()
+
+    dates = []
+
+    if start_date == None:
+        # scrape the previous [grace] days to prevent coverage issues with automated usage
+        start_date = (datetime.today() - timedelta(days=grace)).strftime("%Y/%m")
+
+    if end_date == None:
+        end_date = datetime.today().strftime("%Y/%m")
+
+    start = start_date.split("/")
+    end = end_date.split("/")
+    
+    start = [int(v) for v in start]
+    end =   [int(v) for v in end]
+
+    for year in range(start[0], end[0] + 1):
+        yearStartMonth = 1
+        yearEndMonth = 12
+
+        if year == start[0]:
+            yearStartMonth = start[1]
+        if year == end[0]:
+            yearEndMonth = end[1]
+        
+        for month in range(yearStartMonth, yearEndMonth + 1):
+            dates.append(f"{year}/{month:02}")
+
+    for date in dates:
+        scrape_urls(datasetFile, find_new_urls(datasetFile, format, date))

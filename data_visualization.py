@@ -94,7 +94,10 @@ def create_line_chart(decks_considered: ca.DATASET_CHUNK_TYPE,
 
 if __name__ == "__main__":
     # sample chart
-    create_line_chart(event_type=["league"],
-                      cards=card_groups.MODERN_METAGAME_5_2024,
-                      decks_considered=ca.find_decks(dataset=ca.load_dataset("Data/full_modern.json"), min_date=date(2022, 1, 1)))
+    # create_line_chart(event_type=["league"],
+    #                   cards=card_groups.MODERN_METAGAME_5_2024,
+    #                   decks_considered=ca.find_decks(dataset=ca.load_dataset("Data/full_modern.json"), min_date=date(2022, 1, 1)))
+    
+    create_line_chart(cards=card_groups.MODERN_ARTIFACT_HATE,
+                      decks_considered=ca.find_decks(dataset=ca.load_dataset("Data/Modern.json"), min_date=date(2025, 1, 1)))
 

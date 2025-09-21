@@ -11,17 +11,16 @@ import data_visualization as dv
 import card_groups
 
 DEFAULT_DATASET_FILE = "Data/2025_Decks.json"
-
-dataset_file = DEFAULT_DATASET_FILE
-dataset = ca.load_dataset(dataset_file)
+dataset = DEFAULT_DATASET_FILE #ca.load_dataset(DEFAULT_DATASET_FILE)
 
 deck_search_params = {"whitelist": [], "blacklist": [], "player": None, "min_date": date(2000, 1, 1),
                       "max_date": date(2100, 1, 1), "search_in": ["maindeck", "sideboard"],
                       "event_type": ["league", "scheduled"]}
 
 def choose_file() -> None:
+    global dataset
     dataset_file = askopenfilename()
-    dataset = ca.load_dataset(dataset_file)
+    # dataset = ca.load_dataset(dataset_file)
 
 def comma_separated_input_parser(input: str) -> list[str]:
     if input == "":

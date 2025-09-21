@@ -1,0 +1,17 @@
+.venv
+.idea/
+.ipynb_checkpoints/
+.vscode/
+Scripts/
+__pycache__/
+*.xml
+*.bat
+*.vbs
+*.json
+TODO.txt
+Data/
+Backups/
+
+!Data/scraped_urls_full_modern.txt
+!Data/full_modern.json
+!samplePrefs.xml

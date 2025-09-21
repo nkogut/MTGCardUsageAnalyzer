@@ -6,7 +6,6 @@ DATASET_CHUNK_TYPE = list[dict[str, Union[str, dict[str, int]]]]
 
 def load_dataset(dataset: str) -> DATASET_CHUNK_TYPE:
     # The dataset is a list of dictionaries, each of which represents 1 deck entry
-    print(dataset)
     with open(dataset, "r") as f:
         return json.load(f)
 
@@ -55,7 +54,7 @@ def display_decks(decks: DATASET_CHUNK_TYPE | None) -> str:
         output += "\n------ END OF DECK ------"
     return output
 
-def find_decks(dataset: DATASET_CHUNK_TYPE,
+def find_decks(dataset: str,
                whitelist: Optional[list[str]] = None,
                blacklist: Optional[list[str]] = None,
                player: Optional[str | None] = None,
@@ -73,10 +72,17 @@ def find_decks(dataset: DATASET_CHUNK_TYPE,
         whitelist = []
     if blacklist is None:
         blacklist = []
+
+    whitelist = [v.lower() for v in whitelist]
+    blacklist = [v.lower() for v in blacklist]
+
     if search_in is None:
         search_in = ["maindeck", "sideboard"]
+
     if event_type is None:
         event_type = ["league", "scheduled"]
+
+    dataset = load_dataset(dataset)
 
     found_decks = []
     decks_in_period = []  # For "% of all decks" feature
@@ -85,6 +91,7 @@ def find_decks(dataset: DATASET_CHUNK_TYPE,
         deck_date = date(int(deck_date[-3]), int(deck_date[-2]), int(deck_date[-1][:2]))
         if min_date <= deck_date <= max_date:
             decks_in_period.append(decklist)
+    
     for decklist in decks_in_period:
         if player:
             if player.lower() not in decklist["player"].lower():
@@ -102,15 +109,17 @@ def find_decks(dataset: DATASET_CHUNK_TYPE,
         if not decklist['url'].split("-")[1] in event_keywords:
             continue
 
+        # Fuzzy match
         matched_cards = []
         blacklisted_cards = []
         for location in search_in:
             for card in decklist[location]:
+                card = card.lower()
                 for b in blacklist:
                     if b in card:
                         blacklisted_cards.append(card)
                 for w in whitelist:
-                    if w in card:  # Allow for partial matches with abbreviated names. ex. Fable of the gets mirror-breaker ...
+                    if w in card:  # Allow for partial matches with abbreviated names. e.g. 'Fable of' the gets 'Fable of the mirror-breaker'
                         matched_cards.append(card)
         if len(matched_cards) == len(whitelist) and len(blacklisted_cards) == 0:
             found_decks.append(decklist)
@@ -129,6 +138,7 @@ def find_card_prevalence(sample: DATASET_CHUNK_TYPE, search_in: Optional[list[st
 
     if search_in is None:
         search_in = ["maindeck", "sideboard"]
+
 
     num_decks = len(sample)
     prevalence_dict_main = {}
@@ -157,13 +167,3 @@ def find_card_prevalence(sample: DATASET_CHUNK_TYPE, search_in: Optional[list[st
     for card, quantity in sorted(prevalence_dict_side.items(), key=lambda x: x[1][0], reverse=True):
         output += f"\n{card} - {quantity[0]} - {((quantity[0] / num_decks) * 100):.2f}% - {(quantity[1] / quantity[0]):.2f} average # played "
     return output
-
-if __name__ == "__main__":
-    dataset = load_dataset("Data/full_modern.json")
-
-    # Example:
-    # print(find_card_prevalence(find_decks(dataset=dataset,
-    #                                       min_date=date(2023, 12, 4),
-    #                                       whitelist=["The Rack"],
-    #                                       event_type=["scheduled"])))
-
