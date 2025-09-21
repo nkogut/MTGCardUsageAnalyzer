@@ -12,6 +12,10 @@ from typing import Optional
 
 import chromedriver_autoinstaller
 
+CARD_TYPE_SEPARATORS = ["Creature", "Land", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker",
+                                    "Tribal", "Typal", "Cards", "Other", "Rarity"]
+
+
 chromedriver_autoinstaller.install()
 chrome_options = Options()
 chrome_options.add_argument("--headless")
@@ -81,40 +85,43 @@ def scrape_urls(datasetFile: str, urls: list[str]) -> None:
     errored_urls = []
     output = []
     for url in urls:
-        print("Gathering decks from:", url)
+        urlEnding = url.replace("https://www.mtgo.com/decklist/", "")
+        print(f"Gathering {len(urls)} decks from: ", url)
         try:
             driver.get(url)
             wait = WebDriverWait(driver, 20)
             wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'decklist')))
             content = driver.find_elements(By.CLASS_NAME, 'decklist')
-            scraped_urls.append(url)
+            scraped_urls.append(urlEnding)
         except selenium.common.exceptions.TimeoutException:
-            errored_urls.append(url)
+            errored_urls.append(urlEnding)
             continue
 
         # output = []
         for decklist in content:
-            d = decklist.text
-            d = d.split("\n")
-            deck_date = url.split("-")
-            deck_date = date(int(deck_date[-3]), int(deck_date[-2]), int(deck_date[-1][:2]))
-            player = d[0]
-            deck = {"player": player, "url": url, 'date': deck_date, "maindeck": {}, "sideboard": {}}
-            card_type_separators = ["Creature", "Land", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker",
-                                    "Tribal", "Typal", "Cards", "Other", "Rarity"]
-
+            deckContents = decklist.text
+            deckContents = deckContents.split("\n")
+            deckDate = urlEnding.split("-")
+            year = int(deckDate[-3])
+            month = int(deckDate[-2])
+            day = int(deckDate[-1][:2])
+            deckDate = date(year, month, day)
+            player = deckContents[0]
+            player = player.split(" ")[0]
+            deck = {"player": player, "url": urlEnding, 'date': deckDate, "main": {}, "side": {}}
+            
             md = True
-            for i in range(9, len(d)):
-                if "Sideboard" in d[i]:
+            for i in range(9, len(deckContents)):
+                if "Sideboard" in deckContents[i]:
                     md = False
                     continue
-                for t in card_type_separators:
-                    if t in d[i]:
+                for t in CARD_TYPE_SEPARATORS:
+                    if t in deckContents[i]:
                         break
                 else:
                     # Check if the card is a split card/DFC
-                    quantity = d[i].split(" ", 1)[0]
-                    card = d[i].split(" ", 1)[1]
+                    quantity = deckContents[i].split(" ", 1)[0]
+                    card = deckContents[i].split(" ", 1)[1]
 
                     # Fix non-English character issues
                     # Note: edge cases with non-English characters are currently being investigated as some behave oddly
@@ -131,17 +138,15 @@ def scrape_urls(datasetFile: str, urls: list[str]) -> None:
                             break
 
                     if md:
-                        deck["maindeck"][card] = int(quantity)
+                        deck["main"][card.lower()] = int(quantity)
                     else:
-                        deck["sideboard"][card] = int(quantity)
+                        deck["side"][card.lower()] = int(quantity)
             output.append(deck)
 
     if path.isfile(datasetFile):
         with open(datasetFile, "r") as f:
             existingContent = json.load(f)
             output = existingContent + output
-            # for deck_dict in output:
-            #     output.append(deck_dict) # can we direclty append these 2 lists instead?
     with open(datasetFile, "w") as f:
         json.dump(output, f, default=str)
 
@@ -165,8 +170,8 @@ def find_new_urls(datasetFile: str, format: str, date: str = "") -> list[str]:
     The date should have the format "yyyy/mm"
     """
     url = f"https://www.mtgo.com/decklists/{date}?filter={format.title()}"
-    found_urls = []
-    confirmed_new_urls = []
+    foundUrls = []
+    newUrls = []
 
     try:
         driver.get(url)
@@ -177,7 +182,7 @@ def find_new_urls(datasetFile: str, format: str, date: str = "") -> list[str]:
         return []
     content = driver.find_elements(By.PARTIAL_LINK_TEXT, format)
     for l in content:
-        found_urls.append(l.get_attribute("href"))
+        foundUrls.append(l.get_attribute("href"))
 
     # Skip urls that have already been scraped
     try:
@@ -186,10 +191,12 @@ def find_new_urls(datasetFile: str, format: str, date: str = "") -> list[str]:
             previously_scraped_urls = f.read()
     except FileNotFoundError:
         previously_scraped_urls = ""
-    for url in found_urls:
-        if url not in previously_scraped_urls:
-            confirmed_new_urls.append(url)
-    return confirmed_new_urls[::-1]  # reverse order to preserve chronology
+
+    for url in foundUrls:
+        urlEnding = url.replace("https://www.mtgo.com/decklist/", "")
+        if urlEnding not in previously_scraped_urls:
+            newUrls.append(urlEnding)
+    return newUrls[::-1]  # reverse order to preserve chronology
 
 def scrape_months(datasetFile: str, format: str, skip: bool, grace: Optional[int] = 7, start_date: Optional[str] = None, end_date: Optional[str] = None) -> None:
     """

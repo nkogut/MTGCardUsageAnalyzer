@@ -14,7 +14,7 @@ DEFAULT_DATASET_FILE = "Data/2025_Decks.json"
 dataset = DEFAULT_DATASET_FILE #ca.load_dataset(DEFAULT_DATASET_FILE)
 
 deck_search_params = {"whitelist": [], "blacklist": [], "player": None, "min_date": date(2000, 1, 1),
-                      "max_date": date(2100, 1, 1), "search_in": ["maindeck", "sideboard"],
+                      "max_date": date(2100, 1, 1), "search_in": ["main", "side"],
                       "event_type": ["league", "scheduled"]}
 
 def choose_file() -> None:
@@ -46,11 +46,11 @@ def update_deck_search_params() -> None:
     # Set which part of deck to search in
     if not (search_sideboard.get() + search_maindeck.get()) % 2 == 0:
         if search_maindeck.get() == 0:
-            deck_search_params["search_in"] = ["sideboard"]
+            deck_search_params["search_in"] = ["side"]
         else:
-            deck_search_params["search_in"] = ["maindeck"]
+            deck_search_params["search_in"] = ["main"]
     else:
-        deck_search_params["search_in"] = ["maindeck", "sideboard"]
+        deck_search_params["search_in"] = ["main", "side"]
 
     # Set which types of events to search in
     if not (search_league.get() + search_scheduled.get()) % 2 == 0:

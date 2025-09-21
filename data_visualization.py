@@ -34,8 +34,8 @@ def find_ind_freq(card: str,
         found = False
         if not deck['url'].split("-")[1] in event_type:
             continue
-        if "maindeck" in search_in:
-            for k in deck['maindeck'].keys():
+        if "main" in search_in:
+            for k in deck['main'].keys():
                 if card == k:
                     found = True
                     if deck['date'][:7] in freq_card_dict.keys():
@@ -44,8 +44,8 @@ def find_ind_freq(card: str,
                     else:
                         freq_card_dict[deck['date'][:7]] = 1
 
-        if not found and "sideboard" in search_in:
-            for k in deck['sideboard'].keys():
+        if not found and "side" in search_in:
+            for k in deck['side'].keys():
                 if card == k:
                     if deck['date'][:7] in freq_card_dict.keys():
                         # only include month/year to display with monthly buckets
@@ -74,7 +74,7 @@ def create_line_chart(decks_considered: ca.DATASET_CHUNK_TYPE,
     if event_type is None:
         event_type = ["preliminary", "challenge", "showcase", "last", "qualifier"]
     if search_in is None:
-        search_in = ["maindeck", "sideboard"]
+        search_in = ["main", "side"]
 
     fig, ax = plt.subplots()
     for c in cards:

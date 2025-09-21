@@ -14,7 +14,6 @@ if __name__ == "__main__":
     # Required args (may be provided by XML instead)
     parser.add_argument("-dataset", "-d", nargs="?", help="e.g. 'full_modern'")
     parser.add_argument("-dsPath", nargs="?", help="Relative or absolute path to dataset. e.g. 'Data/'")
-    parser.add_argument("-format", "-f", nargs="?", help="Format name to scrape. e.g. 'modern'")
 
     # Optional search args
     parser.add_argument("-start", "-s", nargs="?", help="first month to scrape. e.g. '2025/1'")
@@ -73,7 +72,8 @@ if __name__ == "__main__":
 
     # Check that mandatory values were included either as input or in XML
     missing = []
-    for arg in ["dataset", "format"]:
+    requiredArgs = ["dataset"]
+    for arg in requiredArgs:
         if args[arg] == None:
             missing.append(arg)
             print(f"Error: no value specified for {arg}.")
@@ -107,9 +107,9 @@ if __name__ == "__main__":
     # Deck / Event
     search_in = []
     if args["main"]:
-        search_in.append("maindeck")
+        search_in.append("main")
     if args["side"]:
-        search_in.append("sideboard")
+        search_in.append("side")
 
     if len(search_in) == 0:
         search_in = None
