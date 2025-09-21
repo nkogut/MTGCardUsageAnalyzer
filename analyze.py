@@ -105,31 +105,30 @@ if __name__ == "__main__":
     args["end"] = datetime.strptime(args["end"], "%Y/%m").date()
 
     # Deck / Event
-    search_in = []
+    searchIn = []
     if args["main"]:
-        search_in.append("main")
+        searchIn.append("main")
     if args["side"]:
-        search_in.append("side")
+        searchIn.append("side")
 
-    if len(search_in) == 0:
-        search_in = None
+    if len(searchIn) == 0:
+        searchIn = None
 
     if args["event"] != None:
         args["event"] = [value.lower() for value in args["event"]]
 
     # Make call to card_analyzer
     print(
-        ca.find_card_prevalence(
-            ca.find_decks(
+        ca.getCardPrevalence(
+            ca.getDecks(
                 dataset=dataset,
                 whitelist=args["whitelist"],
                 blacklist=args["blacklist"],
                 player=args["player"],
-                min_date=args["start"],
-                max_date=args["end"],
-                search_in=search_in,
-                event_type=args["event"]
+                minDate=args["start"],
+                maxDate=args["end"],
+                searchIn=searchIn,
+                eventType=args["event"]
             ),
-            search_in=search_in
         )
     )        

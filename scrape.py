@@ -19,4 +19,4 @@ if __name__ == "__main__":
         args.grace = 7
     args.grace = int(args.grace)
 
-    scraper.scrape_months(args.dataset, args.format, args.skip, args.grace, args.start, args.end)
+    scraper.getUrlsForMonths(args.dataset, args.format, args.skip, args.grace, args.start, args.end)
