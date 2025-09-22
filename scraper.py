@@ -65,7 +65,7 @@ def updateCardPropertiesDataset(format: str) -> None:
             DFCs[k.split(" // ")[0]] = k
     with open("Data/double_cards.json", "w") as f:
         json.dump(DFCs, f)
-    print("successfully updated card properties dataset from Scryfall")
+    print("successfully updated card properties dataset from Scryfall\n")
 
 
 def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
@@ -85,14 +85,18 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
     scrapedUrls = []
     erroredUrls = []
     output = []
+    numDecks = 0
+
+    date_ = dateFromUrl(urls[0])
+    print(f"Scraping {len(urls)} events for {date_.month}/{date_.year}")
     for url in urls:
         urlEnding = url.replace("https://www.mtgo.com/decklist/", "")
-        print(f"Gathering {len(urls)} decks from: ", url)
         try:
             driver.get(url)
-            wait = WebDriverWait(driver, 20)
+            wait = WebDriverWait(driver, 30)
             wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'decklist')))
             content = driver.find_elements(By.CLASS_NAME, 'decklist')
+            print(f"Gathering {len(content)} decks from", url)
             scrapedUrls.append(urlEnding)
         except selenium.common.exceptions.TimeoutException:
             erroredUrls.append(urlEnding)
@@ -101,11 +105,7 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
         for decklist in content:
             deckContents = decklist.text
             deckContents = deckContents.split("\n")
-            deckDate = urlEnding.split("-")
-            year = int(deckDate[-3])
-            month = int(deckDate[-2])
-            day = int(deckDate[-1][:2])
-            deckDate = date(year, month, day)
+            deckDate = dateFromUrl(urlEnding)
             player = deckContents[0]
             player = player.split(" ")[0]
             deck = {"player": player, "url": urlEnding, 'date': deckDate, "main": {}, "side": {}}
@@ -141,6 +141,7 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
                         deck["main"][card.lower()] = int(quantity)
                     else:
                         deck["side"][card.lower()] = int(quantity)
+            numDecks += 1
             output.append(deck)
 
     if path.isfile(datasetFile):
@@ -148,6 +149,7 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
             existingContent = json.load(f)
             output = existingContent + output
     with open(datasetFile, "w") as f:
+        print(f"Saving {numDecks} decklists to {datasetFile} for {date_.month}/{date_.year}")
         json.dump(output, f, default=str)
 
     urlFileName = "Data/scraped_urls_" + datasetFile.split("/")[-1].split(".")[0] + ".txt"
@@ -155,13 +157,18 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
         urlStr = "\n" + "\n".join(scrapedUrls)
         f.write(urlStr)
 
-    if len(erroredUrls) == 0:
-        return
+    if len(erroredUrls) > 0:
+        print("\nURLS That weren't reached and should be run again:")
+        for url in erroredUrls:
+            print(url)
+        print()
 
-    print("\nURLS That weren't reached and should be run again:")
-    for url in erroredUrls:
-        print(url)
-    print()
+def dateFromUrl(url: str) -> date:
+    deckDate = url.split("-")
+    year = int(deckDate[-3])
+    month = int(deckDate[-2])
+    day = int(deckDate[-1][:2])
+    return date(year, month, day)
 
 
 def getNewUrls(datasetFile: str, format: str, date: str = "") -> list[str]:

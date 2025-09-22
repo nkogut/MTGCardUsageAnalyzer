@@ -83,30 +83,28 @@ def getDecks(dataset: str,
     if eventType is None:
         eventType = ["league", "scheduled"]
 
-    dataset = loadDataset(dataset)
+    matchableEvents = [EVENT_TYPES[k] for k in eventType]
 
+    dataset = loadDataset(dataset)
     foundDecks = []
-    decksInPeriod = []  # For "% of all decks" feature
+
+    minDate = str(minDate)
+    maxDate = str(maxDate)
+    dataset = [deck for deck in dataset if minDate <= deck["date"] <= maxDate]
+
     for decklist in dataset:
-        deckDate = decklist['date'][:10]
-        deckDate = datetime.strptime(deckDate, "%Y-%m-%d").date()
-        if minDate <= deckDate <= maxDate:
-            decksInPeriod.append(decklist)
-    
-    for decklist in decksInPeriod:
-        if player:
-            if player.lower() not in decklist["player"].lower():
-                continue
+        if player and player.lower() not in decklist["player"].lower():
+            continue
 
         # Get keywords that define event types to classify decklists by based on the chosen deck type categories
-        eventKeywords = []
-
-        for k, v in EVENT_TYPES.items():
-            if k in eventType:
-                eventKeywords += v
-
+        
         event = decklist['url'].split("-")[1]
-        if event not in eventKeywords:
+        matchedEvent = False
+        for e in matchableEvents:
+            if event in e:
+                matchedEvent = True
+                break
+        if not matchedEvent:
             continue
 
         if not shouldAcceptDeck(searchIn, decklist, whitelist, blacklist):
@@ -150,7 +148,7 @@ def getCardPrevalence(sample: DATASET_CHUNK_TYPE):
 
     numDecks = len(sample)
     prevalenceDict = {"main": {}, "side": {}}
-    
+    maxCardLen = 0
     output = ""
 
     for location in SEARCH_IN_DEFAULT:
@@ -162,12 +160,29 @@ def getCardPrevalence(sample: DATASET_CHUNK_TYPE):
                     locDict[card][1] = locDict[card][1] + deck[location][card]
                 else:
                     locDict[card] = [1, deck[location][card]]
+        
+        # Shorten long DFC names for printing
+        locDict = {(k.split(" //")[0] + " // ...") if (" //" in k) else k: v for k, v in locDict.items()}
+        maxCardLen = max(maxCardLen, len(max(locDict.keys(), key=lambda x: len(x))))
 
-        # Add maindeck or sideboard to output
+    maxQuantityLen = len(str(max(prevalenceDict["main"].values(), key=lambda x: x[0])[0]))
+
+    # Add maindeck or sideboard to output
+    for location in SEARCH_IN_DEFAULT:
         if location == "side":
             output += "\n\n---SIDEBOARD---\n"
 
-        for card, quantity in sorted(locDict.items(), key=lambda x: x[1][0], reverse=True):
-            output += f"\n{card.title()} - {quantity[0]} - {((quantity[0] / numDecks) * 100):.2f}% - {(quantity[1] / quantity[0]):.2f} average # played "
+        locDict = prevalenceDict[location]
+        
+        # Shorten long DFC names
+        locDict = {(k.split(" //")[0] + " // ...") if (" //" in k) else k: v for k, v in locDict.items()}
+        quantityDescending = sorted(locDict.items(), key=lambda x: x[1][0], reverse=True)
+
+        for card, quantity in quantityDescending:
+            percentage = ((quantity[0] / numDecks) * 100)
+            avg = (quantity[1] / quantity[0])
+            output += f"\n{card.title():<{maxCardLen}} | {quantity[0]:>{maxQuantityLen}} decks | {percentage:.2f}% | {avg:.2f} avg"
 
     return output
+
+

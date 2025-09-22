@@ -1,5 +1,6 @@
 import scraper
 import argparse
+import time
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("scrape")
@@ -19,4 +20,6 @@ if __name__ == "__main__":
         args.grace = 7
     args.grace = int(args.grace)
 
+    startTime = time.time()
     scraper.getUrlsForMonths(args.dataset, args.format, args.skip, args.grace, args.start, args.end)
+    print(f"Operation completed in {time.time() - startTime} seconds")
