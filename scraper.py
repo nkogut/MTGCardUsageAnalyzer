@@ -12,14 +12,14 @@ from typing import Optional
 
 import chromedriver_autoinstaller
 
-CARD_TYPE_SEPARATORS = ["Creature", "Land", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker",
-                                    "Tribal", "Typal", "Cards", "Other", "Rarity"]
-
+CARD_TYPE_SEPARATORS = ["Creature", "Land", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Battle"
+                        "Tribal", "Typal", "Cards", "Other", "Rarity"]
 
 chromedriver_autoinstaller.install()
 chromeOptions = Options()
 chromeOptions.add_argument("--headless")
 chromeOptions.add_argument("--log-level=3")
+chromeOptions.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2,}) # Prevent images from loading
 
 try:
     driver = webdriver.Chrome(options=chromeOptions)
@@ -34,8 +34,6 @@ def updateCardPropertiesDataset(format: str) -> None:
 
     if format == None:
         format = "vintage"
-    else:
-        format = format.lower()
 
     # get link to most recent bulk data file from Scryfall
     re = requests.get("https://scryfall.com/docs/api/bulk-data")
@@ -82,9 +80,11 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
     with open("Data/double_cards.json", "r") as f:
         DFCs = json.load(f)  # formatted like: {first/front card: full card name}
 
+    datasetName = datasetFile.split("/")[-1].split(".")[0]
+    urlFileName = f"Data/{datasetName}_urls.json"
     scrapedUrls = []
     erroredUrls = []
-    output = []
+    decks = []
     numDecks = 0
 
     date_ = dateFromUrl(urls[0])
@@ -142,26 +142,30 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
                     else:
                         deck["side"][card.lower()] = int(quantity)
             numDecks += 1
-            output.append(deck)
+            decks.append(deck)
 
-    if path.isfile(datasetFile):
-        with open(datasetFile, "r") as f:
-            existingContent = json.load(f)
-            output = existingContent + output
+    createDatasetFileIfNotExist(datasetFile)
+    with open(datasetFile, "r") as f:
+        storedDecks = json.load(f) 
+        storedDecks += decks
+
     with open(datasetFile, "w") as f:
         print(f"Saving {numDecks} decklists to {datasetFile} for {date_.month}/{date_.year}")
-        json.dump(output, f, default=str)
+        json.dump(storedDecks, f, default=str)
 
-    urlFileName = "Data/scraped_urls_" + datasetFile.split("/")[-1].split(".")[0] + ".txt"
-    with open(urlFileName, "a") as f:
-        urlStr = "\n" + "\n".join(scrapedUrls)
-        f.write(urlStr)
+    createUrlFileIfNotExist(urlFileName)
+    with open(urlFileName, "r") as f:
+        storedUrls = json.load(f)
+        storedUrls["completed"] += scrapedUrls
+        storedUrls["failed"]["event"] = [url for url in storedUrls["failed"]["event"] if url not in scrapedUrls]
+        storedUrls["failed"]["event"] = list(set(erroredUrls + storedUrls["failed"]["event"]))
 
     if len(erroredUrls) > 0:
-        print("\nURLS That weren't reached and should be run again:")
-        for url in erroredUrls:
-            print(url)
-        print()
+        print(f"\nError: {len(erroredUrls)} Url(s) failed. Please try them again with 'python scrape.py <dataset> <format> -retry\n")
+
+    with open(urlFileName, "w") as f:
+        json.dump(storedUrls, f)
+
 
 def dateFromUrl(url: str) -> date:
     deckDate = url.split("-")
@@ -171,40 +175,54 @@ def dateFromUrl(url: str) -> date:
     return date(year, month, day)
 
 
-def getNewUrls(datasetFile: str, format: str, date: str = "") -> list[str]:
+def getNewUrls(datasetFile: str, format: str, date: str) -> list[str]:
     """
     Gets each event url from a page with all events from a month that has not yet been scraped
     The date should have the format "yyyy/mm"
     """
-    url = f"https://www.mtgo.com/decklists/{date}?filter={format.title()}"
+    listingUrl = f"https://www.mtgo.com/decklists/{date}?filter={format.title()}"
+    datasetName = datasetFile.split("/")[-1].split(".")[0]
+    urlFileName = f"Data/{datasetName}_urls.json"
     foundUrls = []
     newUrls = []
 
     try:
-        driver.get(url)
+        driver.get(listingUrl)
         wait = WebDriverWait(driver, 20)
         wait.until(EC.presence_of_element_located((By.PARTIAL_LINK_TEXT, format)))
     except selenium.common.exceptions.TimeoutException:
-        print(f"Unable to find urls from {url}. Try again")
+        print(f"Error: Unable to find urls from {listingUrl}. Please try them again with 'python scrape.py <dataset> <format> -err\n")
+        
+        createUrlFileIfNotExist(urlFileName)
+        with open(urlFileName, "r") as f:
+            storedUrls = json.load(f)
+            storedUrls["failed"]["listing"] = list(set([date] + storedUrls["failed"]["listing"]))
+            
+        with open(urlFileName, "w") as f:
+            json.dump(storedUrls, f)
         return []
     
     content = driver.find_elements(By.PARTIAL_LINK_TEXT, format)
     for l in content:
         foundUrls.append(l.get_attribute("href"))
 
-    # Skip urls that have already been scraped
-    try:
-        urlFileName = "Data/scraped_urls_" + datasetFile.split("/")[-1].split(".")[0] + ".txt"
-        with open(urlFileName, "r") as f:
-            previouslySeenUrls = f.read()
-    except FileNotFoundError:
-        previouslySeenUrls = ""
+    createUrlFileIfNotExist(urlFileName)
+    with open(urlFileName, "r") as f:
+        storedUrls = json.load(f)
 
-    for url in foundUrls:
-        urlEnding = url.replace("https://www.mtgo.com/decklist/", "")
-        if urlEnding not in previouslySeenUrls:
-            newUrls.append(url)
-    return newUrls[::-1]  # reverse order to preserve chronology
+        for url in foundUrls:
+            urlEnding = url.replace("https://www.mtgo.com/decklist/", "")
+            if urlEnding not in storedUrls["completed"]:
+                newUrls.append(url)
+
+        if listingUrl in storedUrls["failed"]["listing"]:
+            storedUrls["failed"]["listing"].remove(listingUrl)
+
+    with open(urlFileName, "w") as f:
+            json.dump(storedUrls, f)
+
+    return newUrls
+
 
 def getUrlsForMonths(datasetFile: str, format: str, skip: bool, grace: Optional[int] = 7, startDate: Optional[str] = None, endDate: Optional[str] = None) -> None:
     """
@@ -246,3 +264,44 @@ def getUrlsForMonths(datasetFile: str, format: str, skip: bool, grace: Optional[
 
     for date in dates:
         scrapeUrls(datasetFile, getNewUrls(datasetFile, format, date))
+
+def retryErroredUrls(dsPath: str, format: str):
+    urlPath = dsPath.replace(".json", "_urls.json")
+    with open(urlPath, "r") as f:
+        urls = json.load(f)
+    fullUrls = ["https://www.mtgo.com/decklist/" + urlEnding for urlEnding in urls["failed"]["event"]]
+    
+    numFailedEvents = len(urls["failed"]["event"])
+    numFailedListings = len(urls["failed"]["listing"])
+
+    scrapeUrls(dsPath, fullUrls)
+    
+    for date in urls["failed"]["listing"]:
+        scrapeUrls(dsPath, getNewUrls(dsPath, format, date))
+
+    # Get updated urls after retries have occurred
+    with open(urlPath, "r") as f:
+        urls = json.load(f)
+
+    newNumEvents = len(urls["failed"]["event"])
+    newNumListings = len(urls["failed"]["listing"])
+
+    print(f"Number of urls retried:")
+    print(f"Events: {numFailedEvents}")
+    print(f"Months: {numFailedListings}")
+    print()
+    print(f"Number of urls that need to be retried again:")
+    print(f"Events: {newNumEvents}")
+    print(f"Months: {newNumListings}")
+
+
+def createFileIfNotExist(filePath: str, content: any) -> None:
+    if not path.isfile(filePath):
+        with open(filePath, "w+") as f:
+            json.dump(content, f)
+
+def createDatasetFileIfNotExist(datasetFile: str) -> None:
+    createFileIfNotExist(datasetFile, [])
+
+def createUrlFileIfNotExist(urlFile: str) -> None:
+    createFileIfNotExist(urlFile, {"completed": [], "failed": {"listing": [], "event": []}})
