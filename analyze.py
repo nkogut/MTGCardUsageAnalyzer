@@ -57,6 +57,8 @@ if __name__ == "__main__":
         # Build XML tree
         root = ET.Element("prefs")
         for k, v in args.items():
+            if k in ["prefs", "save"]: # Ignore these prefs when saving
+                continue
             child = ET.Element(k)
             child.text = str(v)
             root.append(child)
@@ -66,6 +68,7 @@ if __name__ == "__main__":
         # Save the XML
         if ".xml" not in saveName:
             saveName += ".xml"
+
         with open(saveName, "w") as f:
             f.write(xml)
             print(f"Preferences saved to {saveName}")

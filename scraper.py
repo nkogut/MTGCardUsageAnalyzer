@@ -4,7 +4,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
-import json
+import orjson as json
 import requests
 from os import path
 from datetime import *
@@ -78,7 +78,7 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
 
     # Get dict of DFCs and split cards, so they can be made consistent with Scryfall formatting later
     with open("Data/double_cards.json", "r") as f:
-        DFCs = json.load(f)  # formatted like: {first/front card: full card name}
+        DFCs = json.loads(f.read())  # formatted like: {first/front card: full card name}
 
     datasetName = datasetFile.split("/")[-1].split(".")[0]
     urlFileName = f"Data/{datasetName}_urls.json"
@@ -146,7 +146,7 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
 
     createDatasetFileIfNotExist(datasetFile)
     with open(datasetFile, "r") as f:
-        storedDecks = json.load(f) 
+        storedDecks = json.loads(f.read()) 
         storedDecks += decks
 
     with open(datasetFile, "w") as f:
@@ -155,7 +155,7 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
 
     createUrlFileIfNotExist(urlFileName)
     with open(urlFileName, "r") as f:
-        storedUrls = json.load(f)
+        storedUrls = json.loads(f.read())
         storedUrls["completed"] += scrapedUrls
         storedUrls["failed"]["event"] = [url for url in storedUrls["failed"]["event"] if url not in scrapedUrls]
         storedUrls["failed"]["event"] = list(set(erroredUrls + storedUrls["failed"]["event"]))
@@ -191,11 +191,11 @@ def getNewUrls(datasetFile: str, format: str, date: str) -> list[str]:
         wait = WebDriverWait(driver, 20)
         wait.until(EC.presence_of_element_located((By.PARTIAL_LINK_TEXT, format)))
     except selenium.common.exceptions.TimeoutException:
-        print(f"Error: Unable to find urls from {listingUrl}. Please try them again with 'python scrape.py <dataset> <format> -err\n")
+        print(f"Error: Unable to find urls from {listingUrl}. Please try them again with 'python scrape.py <dataset> <format> -err'\n")
         
         createUrlFileIfNotExist(urlFileName)
         with open(urlFileName, "r") as f:
-            storedUrls = json.load(f)
+            storedUrls = json.loads(f.read())
             storedUrls["failed"]["listing"] = list(set([date] + storedUrls["failed"]["listing"]))
             
         with open(urlFileName, "w") as f:
@@ -208,7 +208,7 @@ def getNewUrls(datasetFile: str, format: str, date: str) -> list[str]:
 
     createUrlFileIfNotExist(urlFileName)
     with open(urlFileName, "r") as f:
-        storedUrls = json.load(f)
+        storedUrls = json.loads(f.read())
 
         for url in foundUrls:
             urlEnding = url.replace("https://www.mtgo.com/decklist/", "")
@@ -268,7 +268,7 @@ def getUrlsForMonths(datasetFile: str, format: str, skip: bool, grace: Optional[
 def retryErroredUrls(dsPath: str, format: str):
     urlPath = dsPath.replace(".json", "_urls.json")
     with open(urlPath, "r") as f:
-        urls = json.load(f)
+        urls = json.loads(f.read())
     fullUrls = ["https://www.mtgo.com/decklist/" + urlEnding for urlEnding in urls["failed"]["event"]]
     
     numFailedEvents = len(urls["failed"]["event"])
@@ -281,7 +281,7 @@ def retryErroredUrls(dsPath: str, format: str):
 
     # Get updated urls after retries have occurred
     with open(urlPath, "r") as f:
-        urls = json.load(f)
+        urls = json.loads(f.read())
 
     newNumEvents = len(urls["failed"]["event"])
     newNumListings = len(urls["failed"]["listing"])

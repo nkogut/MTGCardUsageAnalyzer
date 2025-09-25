@@ -16,6 +16,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if ".json" not in args.dataset:
         args.dataset = args.dataset + ".json"
+    args.dataset = args.dataset.replace("\\", "/") # Account for different directory separators in Windows
 
     args.format = args.format.lower()
 

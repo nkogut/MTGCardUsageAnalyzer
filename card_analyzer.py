@@ -1,6 +1,7 @@
-import json
+import orjson as json
 from datetime import *
 from typing import Union, Optional
+import string
 
 DECK_ENTRY = dict[str, Union[str, dict[str, int]]]
 DATASET_CHUNK_TYPE = list[DECK_ENTRY]
@@ -11,14 +12,14 @@ SEARCH_IN_DEFAULT = ["main", "side"]
 def loadDataset(dataset: str) -> DATASET_CHUNK_TYPE:
     # The dataset is a list of dictionaries, each of which represents 1 deck entry
     with open(dataset, "r") as f:
-        return json.load(f)
+        return json.loads(f.read())
 
 def displayDecks(decks: DATASET_CHUNK_TYPE | None) -> str:
     if decks is None:
         decks = []
 
     with open("Data/card_properties.json", "r") as f:
-        cardProperties = json.load(f)
+        cardProperties = json.loads(f.read())
     output = ""
 
     for deck in decks:
@@ -83,28 +84,26 @@ def getDecks(dataset: str,
     if eventType is None:
         eventType = ["league", "scheduled"]
 
-    matchableEvents = [EVENT_TYPES[k] for k in eventType]
+    # Faster to search string than search each element
+    matchableEvents = "@".join([("@".join(EVENT_TYPES[k])) for k in eventType]) 
+
 
     dataset = loadDataset(dataset)
     foundDecks = []
 
     minDate = str(minDate)
     maxDate = str(maxDate)
+    if player:
+        player = player.lower()
+
     dataset = [deck for deck in dataset if minDate <= deck["date"] <= maxDate]
 
     for decklist in dataset:
-        if player and player.lower() not in decklist["player"].lower():
+        if player and player not in decklist["player"].lower():
             continue
 
-        # Get keywords that define event types to classify decklists by based on the chosen deck type categories
-        
         event = decklist['url'].split("-")[1]
-        matchedEvent = False
-        for e in matchableEvents:
-            if event in e:
-                matchedEvent = True
-                break
-        if not matchedEvent:
+        if event not in matchableEvents:
             continue
 
         if not shouldAcceptDeck(searchIn, decklist, whitelist, blacklist):
@@ -121,28 +120,33 @@ def shouldAcceptDeck(searchIn: list[str], decklist: DECK_ENTRY, whitelist: list[
     """
     remainingWhitelist = whitelist.copy()
     leftToMatch = len(whitelist)
-    for location in searchIn:
-        for card in decklist[location]:
-            
-            for b in blacklist:
-                if b in card:
-                    return False
-                
-            for w in remainingWhitelist:
-                if w in card: 
-                    remainingWhitelist.remove(w)
-                    leftToMatch -= 1
-                    if leftToMatch == 0:
-                        return True
-    return leftToMatch == 0 # In case whitelist = []
+    blacklist = set(blacklist)
 
-def getCardPrevalence(sample: DATASET_CHUNK_TYPE):
+    for location in searchIn:
+        # Faster to search string than search each element
+        cards = "@".join(decklist[location].keys())
+        
+        for b in blacklist:
+            if b in cards:
+                return False
+            
+        for w in remainingWhitelist:
+            if w in cards:
+                if leftToMatch <= 1:
+                    return True
+                remainingWhitelist.remove(w)
+                leftToMatch -= 1
+                
+    return leftToMatch == 0
+
+def getCardPrevalence(sample: str) -> string:
     """
     Calculates the prevalence of each card across all decks in sample and lists them in this order
     sample parameter should be passed from getDecks()
     Output looks like:
     Most prevalent card - # copies in sample - % of decks it appears in - Average # played in decks it appeared in
     """
+    
     if not sample:
         return "No decks in sample"
 
@@ -156,13 +160,11 @@ def getCardPrevalence(sample: DATASET_CHUNK_TYPE):
         for deck in sample:
             for card in deck[location]:
                 if card in locDict:
-                    locDict[card][0] = locDict[card][0] + 1
-                    locDict[card][1] = locDict[card][1] + deck[location][card]
+                    locDict[card][0] +=  1
+                    locDict[card][1] += deck[location][card]
                 else:
                     locDict[card] = [1, deck[location][card]]
         
-        # Shorten long DFC names for printing
-        locDict = {(k.split(" //")[0] + " // ...") if (" //" in k) else k: v for k, v in locDict.items()}
         maxCardLen = max(maxCardLen, len(max(locDict.keys(), key=lambda x: len(x))))
 
     maxQuantityLen = len(str(max(prevalenceDict["main"].values(), key=lambda x: x[0])[0]))
@@ -172,17 +174,14 @@ def getCardPrevalence(sample: DATASET_CHUNK_TYPE):
         if location == "side":
             output += "\n\n---SIDEBOARD---\n"
 
-        locDict = prevalenceDict[location]
-        
         # Shorten long DFC names
-        locDict = {(k.split(" //")[0] + " // ...") if (" //" in k) else k: v for k, v in locDict.items()}
-        quantityDescending = sorted(locDict.items(), key=lambda x: x[1][0], reverse=True)
+        prevalenceDict[location] = {(k.split(" //")[0] + " // ...") if (" //" in k) else k: v for k, v in prevalenceDict[location].items()}
+        quantityDescending = sorted(prevalenceDict[location].items(), key=lambda x: x[1][0], reverse=True)
 
         for card, quantity in quantityDescending:
             percentage = ((quantity[0] / numDecks) * 100)
             avg = (quantity[1] / quantity[0])
-            output += f"\n{card.title():<{maxCardLen}} | {quantity[0]:>{maxQuantityLen}} decks | {percentage:.2f}% | {avg:.2f} avg"
+            output += f"\n{string.capwords(card):<{maxCardLen}} | {quantity[0]:>{maxQuantityLen}} decks | {percentage:.2f}% | {avg:.2f} avg"
 
     return output
-
 

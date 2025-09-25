@@ -1,4 +1,4 @@
-import json
+import orjson as json
 import matplotlib.pyplot as plt
 import numpy
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator
