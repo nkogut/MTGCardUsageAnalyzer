@@ -12,8 +12,8 @@ from typing import Optional
 
 import chromedriver_autoinstaller
 
-CARD_TYPE_SEPARATORS = ["Creature", "Land", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Battle"
-                        "Tribal", "Typal", "Cards", "Other", "Rarity"]
+CARD_TYPE_SEPARATORS = ["Creature (", "Land (", "Instant (", "Sorcery (", "Artifact (", "Enchantment (", "Planeswalker (", "Battle"
+                        "Tribal (", "Typal (", "Cards (", "Other (", "Rarity"]
 
 chromedriver_autoinstaller.install()
 chromeOptions = Options()
@@ -54,15 +54,15 @@ def updateCardPropertiesDataset(format: str) -> None:
                 out[c['name']] = {'mana': 'None', 'cmc': 0, 'url': c['scryfall_uri'], 'oracle': 'flip card',
                                   'type': 'flip card'}
 
-    with open("Data/card_properties.json", "w") as f:
-        json.dump(out, f)
+    with open("Data/card_properties.json", "wb") as f:
+        f.write(json.dumps(out))
 
     DFCs = {}  # Cards with 2 names separated by " // " DFCs, split, fuse, etc. {first half: full name}
     for k in out.keys():
         if " // " in k and k.split(" // ")[0] != k.split(" // ")[1]:
             DFCs[k.split(" // ")[0]] = k
-    with open("Data/double_cards.json", "w") as f:
-        json.dump(DFCs, f)
+    with open("Data/double_cards.json", "wb") as f:
+        f.write(json.dumps(DFCs))
     print("successfully updated card properties dataset from Scryfall\n")
 
 
@@ -149,9 +149,9 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
         storedDecks = json.loads(f.read()) 
         storedDecks += decks
 
-    with open(datasetFile, "w") as f:
+    with open(datasetFile, "wb") as f:
         print(f"Saving {numDecks} decklists to {datasetFile} for {date_.month}/{date_.year}")
-        json.dump(storedDecks, f, default=str)
+        f.write(json.dumps(storedDecks))
 
     createUrlFileIfNotExist(urlFileName)
     with open(urlFileName, "r") as f:
@@ -163,8 +163,8 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
     if len(erroredUrls) > 0:
         print(f"\nError: {len(erroredUrls)} Url(s) failed. Please try them again with 'python scrape.py <dataset> <format> -retry\n")
 
-    with open(urlFileName, "w") as f:
-        json.dump(storedUrls, f)
+    with open(urlFileName, "wb") as f:
+        f.write(json.dumps(storedUrls))
 
 
 def dateFromUrl(url: str) -> date:
@@ -198,8 +198,8 @@ def getNewUrls(datasetFile: str, format: str, date: str) -> list[str]:
             storedUrls = json.loads(f.read())
             storedUrls["failed"]["listing"] = list(set([date] + storedUrls["failed"]["listing"]))
             
-        with open(urlFileName, "w") as f:
-            json.dump(storedUrls, f)
+        with open(urlFileName, "wb") as f:
+            f.write(json.dumps(storedUrls))
         return []
     
     content = driver.find_elements(By.PARTIAL_LINK_TEXT, format)
@@ -218,8 +218,8 @@ def getNewUrls(datasetFile: str, format: str, date: str) -> list[str]:
         if listingUrl in storedUrls["failed"]["listing"]:
             storedUrls["failed"]["listing"].remove(listingUrl)
 
-    with open(urlFileName, "w") as f:
-            json.dump(storedUrls, f)
+    with open(urlFileName, "wb") as f:
+            f.write(json.dumps(storedUrls))
 
     return newUrls
 
@@ -297,8 +297,8 @@ def retryErroredUrls(dsPath: str, format: str):
 
 def createFileIfNotExist(filePath: str, content: any) -> None:
     if not path.isfile(filePath):
-        with open(filePath, "w+") as f:
-            json.dump(content, f)
+        with open(filePath, "wb+") as f:
+            f.write(json.dumps(content))
 
 def createDatasetFileIfNotExist(datasetFile: str) -> None:
     createFileIfNotExist(datasetFile, [])
