@@ -1,8 +1,10 @@
 import argparse
 import xml.etree.ElementTree as ET
 import ast
+import string
 import card_analyzer as ca
 from datetime import datetime
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("analyze")
@@ -21,6 +23,7 @@ if __name__ == "__main__":
     parser.add_argument("-whitelist", "-w", nargs="*", help="e.g. \"kappa cann\" \"thought monitor\" memnite ...")
     parser.add_argument("-blacklist", "-b", nargs="*", help="e.g. \"kappa cann\" \"thought monitor\" memnite ...")
     parser.add_argument("-player", nargs="?", help="Search only for decks from a specific player")
+    parser.add_argument("-type", nargs="*", help="Return only cards of a specific type(s)")
     parser.add_argument("-main", action=argparse.BooleanOptionalAction, help="Search only when the card is in the maindeck")
     parser.add_argument("-side", action=argparse.BooleanOptionalAction, help="Search only when the card is in the sideboard")
     parser.add_argument("-event", nargs="*", help="'league' or 'scheduled'")
@@ -117,9 +120,6 @@ if __name__ == "__main__":
     if len(searchIn) == 0:
         searchIn = None
 
-    if args["event"] != None:
-        args["event"] = [value.lower() for value in args["event"]]
-
     # Make call to card_analyzer
     print(
         ca.getCardPrevalence(
@@ -133,5 +133,6 @@ if __name__ == "__main__":
                 searchIn=searchIn,
                 eventType=args["event"]
             ),
+            args["type"]
         )
     )        

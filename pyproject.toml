@@ -10,7 +10,8 @@ dependencies = [
     "matplotlib>=3.9.0",
     "numpy>=2.0.0",
     "python-dateutil>=2.9.0",
-    "orjson">=3.11.0"
+    "orjson">=3.11.0",
+    "unidecode>=1.4.0"
 ]
 readme = "README.md"
 keywords = ["Magic: The Gathering", "MTG", "MTGO", "Deckbuilding"]

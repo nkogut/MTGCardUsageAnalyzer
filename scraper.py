@@ -9,11 +9,12 @@ import requests
 from os import path
 from datetime import *
 from typing import Optional
+from unidecode import unidecode
 
 import chromedriver_autoinstaller
 
 CARD_TYPE_SEPARATORS = ["Creature (", "Land (", "Instant (", "Sorcery (", "Artifact (", "Enchantment (", "Planeswalker (", "Battle"
-                        "Tribal (", "Typal (", "Cards (", "Other (", "Rarity"]
+                        "Tribal (", "Typal (", "Cards", "Other (", "Rarity"]
 
 chromedriver_autoinstaller.install()
 chromeOptions = Options()
@@ -45,24 +46,30 @@ def updateCardPropertiesDataset(format: str) -> None:
 
     out = {}
     for c in re.json():
-        if c['legalities'][format] in ['legal', 'banned']:
-            try:
-                out[c['name']] = {'mana': c['mana'], 'cmc': int(c['cmc']), 'url': c['scryfall_uri'],
-                                  'oracle': c['oracle_text'], 'type': c['type_line']}
-            except KeyError:
-                # Encountered a flip card
-                out[c['name']] = {'mana': 'None', 'cmc': 0, 'url': c['scryfall_uri'], 'oracle': 'flip card',
-                                  'type': 'flip card'}
+        if c['legalities'][format] in ['legal', 'banned', 'restricted']:
+            name = c["name"]
+            lowerName = unidecode(name).lower().split(" //")[0]
+            uri = c["scryfall_uri"]
+            type = c["type_line"]
+            
+            if "mana_cost" in c:
+                manaCost = c["mana_cost"]
+            else:
+                manaCost = "{0}"
+            
+            if "cmc" in c:
+                cmc = c["cmc"]
+            else:
+                cmc = 0
+
+            # oracle = c["oracle_text"]
+            
+            out[lowerName] = {"displayName": name, "type": type, "uri": uri, "manaCost": manaCost, "cmc": cmc}
+
 
     with open("Data/card_properties.json", "wb") as f:
         f.write(json.dumps(out))
 
-    DFCs = {}  # Cards with 2 names separated by " // " DFCs, split, fuse, etc. {first half: full name}
-    for k in out.keys():
-        if " // " in k and k.split(" // ")[0] != k.split(" // ")[1]:
-            DFCs[k.split(" // ")[0]] = k
-    with open("Data/double_cards.json", "wb") as f:
-        f.write(json.dumps(DFCs))
     print("successfully updated card properties dataset from Scryfall\n")
 
 
@@ -75,10 +82,6 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
 
     if not urls:
         return
-
-    # Get dict of DFCs and split cards, so they can be made consistent with Scryfall formatting later
-    with open("Data/double_cards.json", "r") as f:
-        DFCs = json.loads(f.read())  # formatted like: {first/front card: full card name}
 
     datasetName = datasetFile.split("/")[-1].split(".")[0]
     urlFileName = f"Data/{datasetName}_urls.json"
@@ -119,28 +122,17 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
                     if t in deckContents[i]:
                         break
                 else:
-                    # Check if the card is a split card/DFC
                     quantity = deckContents[i].split(" ", 1)[0]
-                    card = deckContents[i].split(" ", 1)[1]
 
-                    # Fix non-English character issues
-                    # Note: edge cases with non-English characters are currently being investigated as some behave oddly
-                    unicodeReplacements = {"Ã\x86": "Ae", "\u00c3\u00b3": "\u00f3"}
-                    for k in unicodeReplacements.keys():
-                        if k in card:
-                            card.replace(k, unicodeReplacements[k])
+                    card = deckContents[i].split(" ", 1)[1] 
 
-                    if "/" in card:
-                        card = card.split("/")[0]
-                    for double in DFCs.keys():
-                        if double == card:
-                            card = DFCs[double]
-                            break
+                    card = unidecode(card) # convert all characters to English. Prevents key errors when matching with card_properties.json.
+                    card = card.lower().split("/")[0] # For DFCs only use the front name
 
                     if md:
-                        deck["main"][card.lower()] = int(quantity)
+                        deck["main"][card] = int(quantity)
                     else:
-                        deck["side"][card.lower()] = int(quantity)
+                        deck["side"][card] = int(quantity)
             numDecks += 1
             decks.append(deck)
 

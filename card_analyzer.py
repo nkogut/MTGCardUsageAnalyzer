@@ -9,10 +9,12 @@ EVENT_TYPES = { "league": ["league", "gold", "daily"],
                 "scheduled": ["prelim", "challenge", "ptq", "championship", "qualifier", "playoff", "finals", "last-chance"]}
 SEARCH_IN_DEFAULT = ["main", "side"]
 
+
 def loadDataset(dataset: str) -> DATASET_CHUNK_TYPE:
     # The dataset is a list of dictionaries, each of which represents 1 deck entry
     with open(dataset, "r") as f:
         return json.loads(f.read())
+
 
 def displayDecks(decks: DATASET_CHUNK_TYPE | None) -> str:
     if decks is None:
@@ -23,22 +25,12 @@ def displayDecks(decks: DATASET_CHUNK_TYPE | None) -> str:
     output = ""
 
     for deck in decks:
-        # For non-english characters that are represented differently on different mtgo.com pages: replace with a safe
-        # card name in the rare case that some are stored inconsistently in older versions of the database
-        brokenNames = ['Troll of Khazad-dÃ»m', "LÃ³rien Revealed"]
-        for card in brokenNames:
-            for location in SEARCH_IN_DEFAULT:
-
-                if card in deck[location]:
-                    deck[location]['Gifted Aetherborn'] = deck[location][card]
-                    del deck[location][card]
-
         output += f"\n {deck['player']} {deck['url']}"
         try:
             main = sorted(deck['main'].keys(), key=lambda x: cardProperties[x]['cmc'])
             side = sorted(deck['side'].keys(), key=lambda x: cardProperties[x]['cmc'])
         except KeyError:
-            # The Data/card_properties.json dataset is out of date
+            # The Data/card_properties.json dataset is out of date. In this case do not sort on cmc
             main = deck['main']
             side = deck['side']
 
@@ -55,6 +47,7 @@ def displayDecks(decks: DATASET_CHUNK_TYPE | None) -> str:
                 output += f"\n{card} - error retrieving CMC or quantity"
         output += "\n------ END OF DECK ------"
     return output
+
 
 def getDecks(dataset: str,
                whitelist: Optional[list[str]] = None,
@@ -83,6 +76,8 @@ def getDecks(dataset: str,
 
     if eventType is None:
         eventType = ["league", "scheduled"]
+    else:
+        eventType = [v.lower() for v in eventType]
 
     # Faster to search string than search each element
     matchableEvents = "@".join([("@".join(EVENT_TYPES[k])) for k in eventType]) 
@@ -139,7 +134,7 @@ def shouldAcceptDeck(searchIn: list[str], decklist: DECK_ENTRY, whitelist: list[
                 
     return leftToMatch == 0
 
-def getCardPrevalence(sample: str) -> string:
+def getCardPrevalence(sample: str, showTypes: Optional[list[str]] = None) -> string:
     """
     Calculates the prevalence of each card across all decks in sample and lists them in this order
     sample parameter should be passed from getDecks()
@@ -149,39 +144,64 @@ def getCardPrevalence(sample: str) -> string:
     
     if not sample:
         return "No decks in sample"
+    
+    with open("Data/card_properties.json", "rb") as f:
+            cardProperties = json.loads(f.read())
+    
+    if showTypes:
+            showTypes = [string.capwords(t) for t in showTypes]
+
+    # Use this list of all cards in cardProperties to make sure an invalid key is never used.
+    # This would only occur if the Scryfall API was briefly out of date when a new set is released. 
+    # Failing to check against this will destroy the dictionary comprehensions below  
+    recognizeableCards = cardProperties.keys()
 
     numDecks = len(sample)
     prevalenceDict = {"main": {}, "side": {}}
     maxCardLen = 0
     output = ""
+    unrecoginzableCards = [] # Track cards that cannot match cardProperties so they do not get logged multiple times
 
     for location in SEARCH_IN_DEFAULT:
         locDict = prevalenceDict[location]
         for deck in sample:
             for card in deck[location]:
+                if card not in recognizeableCards:
+                    if card not in unrecoginzableCards:
+                        unrecoginzableCards.append(card)
+                        print(f"Error: unable to identify {card}. Please update card_properties.json.")
+                    continue
                 if card in locDict:
                     locDict[card][0] +=  1
                     locDict[card][1] += deck[location][card]
                 else:
                     locDict[card] = [1, deck[location][card]]
         
-        maxCardLen = max(maxCardLen, len(max(locDict.keys(), key=lambda x: len(x))))
+        longestCardName = max(locDict.keys(), key=lambda x: len(cardProperties[x]["displayName"]))
+        maxCardLen = max(maxCardLen, len(cardProperties[longestCardName]["displayName"]))
 
-    maxQuantityLen = len(str(max(prevalenceDict["main"].values(), key=lambda x: x[0])[0]))
+    maxQuantityLen = len(str(max(prevalenceDict["main"].values(), key=lambda x: x[0])[0]))            
 
     # Add maindeck or sideboard to output
     for location in SEARCH_IN_DEFAULT:
         if location == "side":
             output += "\n\n---SIDEBOARD---\n"
 
-        # Shorten long DFC names
-        prevalenceDict[location] = {(k.split(" //")[0] + " // ...") if (" //" in k) else k: v for k, v in prevalenceDict[location].items()}
+        if showTypes:
+            def keep(name):
+                for type in showTypes:
+                    if type in cardProperties[name]["type"]:
+                        return True
+                return False
+            prevalenceDict[location] = {k:v for k,v in prevalenceDict[location].items() if (keep(k))}
+        
+
         quantityDescending = sorted(prevalenceDict[location].items(), key=lambda x: x[1][0], reverse=True)
 
         for card, quantity in quantityDescending:
             percentage = ((quantity[0] / numDecks) * 100)
             avg = (quantity[1] / quantity[0])
-            output += f"\n{string.capwords(card):<{maxCardLen}} | {quantity[0]:>{maxQuantityLen}} decks | {percentage:.2f}% | {avg:.2f} avg"
+            output += f"\n{cardProperties[card]['displayName']:<{maxCardLen}} | {quantity[0]:>{maxQuantityLen}} decks | {percentage:>5.2f}% | {avg:.2f} avg"
 
     return output
 
