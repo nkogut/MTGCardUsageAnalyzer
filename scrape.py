@@ -28,5 +28,5 @@ if __name__ == "__main__":
     if (args.retry):
         scraper.retryErroredUrls(args.dataset, args.format)
     else:
-        scraper.getUrlsForMonths(args.dataset, args.format, args.skip, args.grace, args.start, args.end)
+        scraper.scrapeUrlsByMonth(args.dataset, args.format, args.skip, args.grace, args.start, args.end)
     print(f"Operation completed in {time.time() - startTime} seconds")
