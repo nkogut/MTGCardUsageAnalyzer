@@ -10,7 +10,7 @@ import card_analyzer as ca
 import data_visualization as dv
 import card_groups
 
-DEFAULT_DATASET_FILE = "Data/sample_modern.json"
+DEFAULT_DATASET_FILE = "Data/modern.json"
 dataset = DEFAULT_DATASET_FILE
 
 searchParams = {"whitelist": [], "blacklist": [], "player": None, "minDate": date(2000, 1, 1),
@@ -86,14 +86,13 @@ def generateChart() -> None:
     print(searchParams)
     if not inputChart:
         # Use dropdown
-        dv.createLineChart(consideredDecks=ca.getDecks(dataset, *searchParams.values()),
-                             eventType=searchParams["eventType"],
-                             cards=card_groups.CARD_GROUP_DICT[chartDropdownValue.get()])
+        cards = card_groups.CARD_GROUP_DICT[chartDropdownValue.get()]
     else:
-        # Use text input
-        dv.createLineChart(consideredDecks=ca.getDecks(dataset, *searchParams.values()),
-                             eventType=searchParams["eventType"],
-                             cards=inputChart)
+        # use text input
+        cards = inputChart
+
+    dv.createLineChart(consideredDecks=ca.getDecks(dataset, *searchParams.values()),
+                        cards=cards)
 
 
 def queryDecks() -> list[dict[str, Union[str, dict[str, int]]]]:
@@ -186,7 +185,7 @@ chartDropdown.grid(row=1, column=1)
 
 
 # Output
-outputTextbox = scrolledtext.ScrolledText(root, state="disabled", width=80, height=10, wrap=tk.WORD)
+outputTextbox = scrolledtext.ScrolledText(root, state="disabled", width=160, height=30, wrap=tk.WORD)
 
 
 # Populate window

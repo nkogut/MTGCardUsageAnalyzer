@@ -10,6 +10,7 @@ from os import path
 from datetime import *
 from typing import Optional
 from unidecode import unidecode
+import utils
 
 import chromedriver_autoinstaller
 
@@ -22,7 +23,7 @@ Tribal / Kindred are no longer used (they just use the other type)
 "Cards" follows the quantity of maindeck cards and doses not have a "(". No legal cards have a name that conflicts with this weaker separator
 '''
 
-DRIVER_TIMEOUT = 12
+DRIVER_TIMEOUT = 8
 
 chromedriver_autoinstaller.install()
 chromeOptions = Options()
@@ -104,19 +105,28 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
             driver.get(url)
             wait = WebDriverWait(driver, DRIVER_TIMEOUT)
             wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'decklist-item-page')))
-            try:
-                content = driver.find_elements(By.CLASS_NAME, 'decklist')
-                if len(content) == 0:
-                    raise Exception(f"Error: no decks present at {url}")
-                print(f"Gathering {len(content)} decks from", url)
-                scrapedUrls.append(urlEnding)
-            except Exception as e:
-                print(e)
+            # try:
+            content = driver.find_elements(By.CLASS_NAME, 'decklist')
+            if len(content) == 0:
+                print(f"Error: no decks present at {url}")
                 deadUrls.append(urlEnding)
                 continue
+                # raise Exception(f"Error: no decks present at {url}")
+            print(f"Gathering {len(content)} decks from", url)
+            scrapedUrls.append(urlEnding)
+            # except Exception as e:
+            #     print(e)
+            #     deadUrls.append(urlEnding)
+            #     continue
             
         except selenium.common.exceptions.TimeoutException:
+            if driver.current_url == "https://www.mtgo.com/decklists":
+                # Page was removed
+                print(f"Error: {url} was removed.")
+                deadUrls.append(urlEnding)
+                continue
             erroredUrls.append(urlEnding)
+            print(driver.current_url)
             continue
 
         for decklist in content:
@@ -163,7 +173,7 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
     with open(urlFileName, "r") as f:
         storedUrls = json.loads(f.read())
         storedUrls["completed"] += scrapedUrls
-        storedUrls["failed"]["event"] = [url for url in storedUrls["failed"]["event"] if url not in scrapedUrls]
+        storedUrls["failed"]["event"] = [url for url in storedUrls["failed"]["event"] if url not in scrapedUrls and url not in deadUrls]
         storedUrls["failed"]["event"] = list(set(erroredUrls + storedUrls["failed"]["event"]))
         storedUrls["failed"]["dead"] = list(set(deadUrls + storedUrls["failed"]["dead"]))
 
@@ -211,8 +221,11 @@ def getNewUrls(datasetFile: str, format: str, date: str) -> list[str]:
     
     content = driver.find_elements(By.PARTIAL_LINK_TEXT, format)
     if len(content) == 0:
-        print(f"Error: No {format} decklists found at {listingUrl}'\n")
+        print(f"Error: No {format} decklists found at {listingUrl}'")
         storedUrls["failed"]["dead"] = list(set([date] + storedUrls["failed"]["dead"]))
+        if date in storedUrls["failed"]["listing"]:
+            storedUrls["failed"]["listing"].remove(date)
+
         with open(urlFileName, "wb") as f:
             f.write(json.dumps(storedUrls))
         return []
@@ -261,23 +274,7 @@ def scrapeUrlsByMonth(datasetFile: str, format: str, skip: bool, grace: Optional
         print("Error: Start Date comes after End Date")
         return
 
-    start = startDate.split("/")
-    end = endDate.split("/")
-    
-    start = [int(v) for v in start]
-    end =   [int(v) for v in end]
-
-    for year in range(start[0], end[0] + 1):
-        yearStartMonth = 1
-        yearEndMonth = 12
-
-        if year == start[0]:
-            yearStartMonth = start[1]
-        if year == end[0]:
-            yearEndMonth = end[1]
-        
-        for month in range(yearStartMonth, yearEndMonth + 1):
-            dates.append(f"{year}/{month:02}")
+    dates = utils.getDatesBetweenMonths(startDate, endDate)
 
     for date in dates:
         scrapeUrls(datasetFile, getNewUrls(datasetFile, format, date))
