@@ -13,10 +13,18 @@ MODERN_METAGAME_5_2024 = ["Amulet of Vigor", "Urza's Tower", "Goblin Guide", "Ya
 MODERN_METAGAME_7_2024 = ["Nadu, Winged Wisdom", "Necrodominance", "Ruby Medallion", "Living End", "Guide of Souls",
                    "Tune the Narrative", "Goryo's Vengeance", "Murktide Regent", "Through the Breach", "Slickshot Show-Off"]
 
+MODERN_METAGAME_9_2025 = ["Ocelot Pride", "Leyline of the Guildpact", "Goblin Charbelcher", "Urza's Tower", "Amulet of Vigor",
+                          "Goryo's Vengeance", "Thoughtcast", "Phelia, Exuberant Shepherd", "Ral, Monsoon Mage", "Cori-Steel Cutter",
+                          "Allosaurus Rider", "Living End"]
+
+
+
 MODERN_EXILE_REMOVAL = ["Path to Exile", "Leyline Binding", "Celestial Purge", "Prismatic Ending", "Dispatch"
                         "Vanishing Verse", "March of Otherworldly Light"]
 
-MODERN_ALL_CREATURE_REMOVAL = MODERN_EXILE_REMOVAL + ["Fatal Push", "Dismember", "Lightning Bolt", "Unholy Heat",
+MODERN_WRATHS = ["Supreme Verdict", "Damn", "Wrath of the Skies", "Kozilek's Return", "Pyroclasm", "Hurkyl's Recall", "Whipflare"]
+
+MODERN_ALL_CREATURE_REMOVAL = MODERN_WRATHS + MODERN_EXILE_REMOVAL + ["Fatal Push", "Dismember", "Lightning Bolt", "Unholy Heat",
                                                      "Sheoldred's Edict", "Flare of Malice"]
 
 MODERN_ARTIFACT_HATE = ["Meltdown", "Shattering Spree", "Disenchant", "Force of Vigor"]
@@ -32,8 +40,9 @@ MH2_ELEMENTALS = ["Solitude", "Subtlety", "Grief", "Fury", "Endurance"]
 
 
 # Store these lists in a gui so they can be accessed easily via the GUI
-CARD_GROUP_DICT: dict[str: list[str]] = {"Modern Metagame 5-2024 (Pre-MH3)": MODERN_METAGAME_5_2024,
-                                         "Modern Metagame 7-2024 (Post-MH3)": MODERN_METAGAME_7_2024,
+CARD_GROUP_DICT: dict[str: list[str]] = {#"Modern Metagame 5-2024 (Pre-MH3)": MODERN_METAGAME_5_2024,
+                                         #"Modern Metagame 7-2024 (Post-MH3)": MODERN_METAGAME_7_2024,
+                                         "Modern Metagame 2025": MODERN_METAGAME_9_2025,
                                          "Shocklands": SHOCKLANDS,
                                          "Fetchlands": FETCHLANDS,
                                          "Basic Lands": BASIC_LANDS,

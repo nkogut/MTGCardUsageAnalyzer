@@ -90,7 +90,6 @@ def generateChart() -> None:
     else:
         # use text input
         cards = inputChart
-
     dv.createLineChart(consideredDecks=ca.getDecks(dataset, *searchParams.values()),
                         cards=cards)
 

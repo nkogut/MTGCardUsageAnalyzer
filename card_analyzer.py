@@ -116,21 +116,17 @@ def shouldAcceptDeck(searchIn: list[str], decklist: DECK_ENTRY, whitelist: list[
     remainingWhitelist = whitelist.copy()
     leftToMatch = len(whitelist)
     blacklist = set(blacklist)
+    cards = "@".join(["@".join(decklist[location].keys()) for location in searchIn])
 
-    for location in searchIn:
-        # Faster to search string than search each element
-        cards = "@".join(decklist[location].keys())
+    for b in blacklist:
+        if b in cards:
+            return False
         
-        for b in blacklist:
-            if b in cards:
-                return False
-            
-        for w in remainingWhitelist:
-            if w in cards:
-                if leftToMatch <= 1:
-                    return True
-                remainingWhitelist.remove(w)
-                leftToMatch -= 1
+    for w in remainingWhitelist:
+        if w in cards:
+            if leftToMatch <= 1:
+                return True
+            leftToMatch -= 1
                 
     return leftToMatch == 0
 

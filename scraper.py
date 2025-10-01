@@ -54,6 +54,8 @@ def updateCardPropertiesDataset() -> None:
 
     out = {}
     for c in re.json():
+        if c["layout"] in ["vanguard", "art_series", "planar", "scheme"]:
+            continue
         name = c["name"]
         lowerName = unidecode(name).lower().split(" //")[0]
         uri = c["scryfall_uri"]
