@@ -99,8 +99,7 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
     decks = []
     numDecks = 0
 
-    date_ = dateFromUrl(urls[0])
-    print(f"Scraping {len(urls)} events for {date_.month}/{date_.year}")
+    print(f"Scraping {len(urls)} events")
     for url in urls:
         urlEnding = url.replace("https://www.mtgo.com/decklist/", "")
         try:
@@ -113,13 +112,9 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
                 print(f"Error: no decks present at {url}")
                 deadUrls.append(urlEnding)
                 continue
-                # raise Exception(f"Error: no decks present at {url}")
+
             print(f"Gathering {len(content)} decks from", url)
             scrapedUrls.append(urlEnding)
-            # except Exception as e:
-            #     print(e)
-            #     deadUrls.append(urlEnding)
-            #     continue
             
         except selenium.common.exceptions.TimeoutException:
             if driver.current_url == "https://www.mtgo.com/decklists":
@@ -136,7 +131,7 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
             deckContents = deckContents.split("\n")
             deckDate = dateFromUrl(urlEnding)
             player = deckContents[0]
-            player = player.split(" ")[0]
+            player = unidecode(player.split(" ")[0])
             deck = {"player": player, "url": urlEnding, 'date': deckDate, "main": {}, "side": {}}
             
             md = True
@@ -168,7 +163,7 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
         storedDecks += decks
 
     with open(datasetFile, "wb") as f:
-        print(f"Saving {numDecks} decklists to {datasetFile} for {date_.month}/{date_.year}")
+        print(f"Saving {numDecks} decklists to {datasetFile}")
         f.write(json.dumps(storedDecks))
 
     createUrlFileIfNotExist(urlFileName)
