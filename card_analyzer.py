@@ -1,13 +1,16 @@
 import orjson as json
 from datetime import *
 from typing import Union, Optional
+from os import path
 import string
+import scraper
 
 DECK_ENTRY = dict[str, Union[str, dict[str, int]]]
 DATASET_CHUNK_TYPE = list[DECK_ENTRY]
 EVENT_TYPES = { "league": ["league", "gold", "daily"],
                 "scheduled": ["prelim", "challenge", "ptq", "championship", "qualifier", "playoff", "finals", "last-chance"]}
 SEARCH_IN_DEFAULT = ["main", "side"]
+CARD_PROPERTIES_PATH = "Data/card_properties.json"
 
 
 def loadDataset(dataset: str) -> DATASET_CHUNK_TYPE:
@@ -20,8 +23,8 @@ def displayDecks(decks: DATASET_CHUNK_TYPE | None) -> str:
     if decks is None:
         decks = []
 
-    with open("Data/card_properties.json", "r") as f:
-        cardProperties = json.loads(f.read())
+    cardProperties = loadCardProperties(force=False)
+
     output = ""
 
     for deck in decks:
@@ -31,21 +34,22 @@ def displayDecks(decks: DATASET_CHUNK_TYPE | None) -> str:
             side = sorted(deck['side'].keys(), key=lambda x: cardProperties[x]['cmc'])
         except KeyError:
             # The Data/card_properties.json dataset is out of date. In this case do not sort on cmc
+            print("Error: Card Properties is out of date. Please update it with 'python analyze.py -fprops'")
             main = deck['main']
             side = deck['side']
 
         for card in main:
             try:
-                output += f"\n{deck['main'][card]} {card} - {cardProperties[card]['mana']}"
+                output += f"\n{deck['main'][card]} {card} - {cardProperties[card]['manaCost']}"
             except KeyError:
                 output += f"\n{card} - error retrieving CMC or quantity"
         output += "\n------ side ------"
         for card in side:
             try:
-                output += f"\n{deck['side'][card]} {card} - {cardProperties[card]['mana']}"
+                output += f"\n{deck['side'][card]} {card} - {cardProperties[card]['manaCost']}"
             except KeyError:
                 output += f"\n{card} - error retrieving CMC or quantity"
-        output += "\n------ END OF DECK ------"
+        output += "\n------ END OF DECK ------\n"
     return output
 
 
@@ -140,9 +144,8 @@ def getCardPrevalence(sample: str, showTypes: Optional[list[str]] = None) -> str
     
     if not sample:
         return "No decks in sample"
-    
-    with open("Data/card_properties.json", "rb") as f:
-            cardProperties = json.loads(f.read())
+
+    cardProperties = loadCardProperties(force=False)
     
     if showTypes:
             showTypes = [string.capwords(t) for t in showTypes]
@@ -201,3 +204,10 @@ def getCardPrevalence(sample: str, showTypes: Optional[list[str]] = None) -> str
 
     return output
 
+def loadCardProperties(force):
+    if not path.isfile(CARD_PROPERTIES_PATH) or force:
+        print("Updating Card Properties dataset")
+        scraper.updateCardPropertiesDataset()
+
+    with open(CARD_PROPERTIES_PATH, "rb") as f:
+        return json.loads(f.read())

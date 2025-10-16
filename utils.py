@@ -2,7 +2,7 @@ def getDatesBetweenMonths(startDate: str, endDate: str) -> list[str]:
     '''
     Returns a list of every month between the start and end date (inclusive)
     Inputs can be: YYYY/MM or YYYY-MM
-    Outputs are: YYYY-MM
+    Outputs are: YYYY/MM
     '''
 
     # Slice to remove days if invluded
@@ -28,6 +28,6 @@ def getDatesBetweenMonths(startDate: str, endDate: str) -> list[str]:
             yearEndMonth = end[1]
         
         for month in range(yearStartMonth, yearEndMonth + 1):
-            dates.append(f"{year}-{month:02}")
+            dates.append(f"{year}/{month:02}")
 
     return dates

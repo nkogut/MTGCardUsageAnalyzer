@@ -6,11 +6,12 @@ dynamic = ["version"]
 dependencies = [
     "requests>=2.32.2",
     "selenium>=4.21.0",
+    "chromedriver-autoinstaller>=0.6.4",
     "tkcalendar>=1.6.1",
     "matplotlib>=3.9.0",
     "numpy>=2.0.0",
     "python-dateutil>=2.9.0",
-    "orjson"^3.10",
+    "orjson>=3.10",
     "unidecode>=1.4.0"
 ]
 readme = "README.md"

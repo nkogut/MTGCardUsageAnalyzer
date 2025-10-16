@@ -26,7 +26,9 @@ if __name__ == "__main__":
     parser.add_argument("-type", nargs="*", help="Return only cards of a specific type(s)")
     parser.add_argument("-main", action=argparse.BooleanOptionalAction, help="Search only when the card is in the maindeck")
     parser.add_argument("-side", action=argparse.BooleanOptionalAction, help="Search only when the card is in the sideboard")
+    parser.add_argument("-fprops", action=argparse.BooleanOptionalAction, help="Forcefully update the Card Properties dataset")
     parser.add_argument("-event", nargs="*", help="'league' or 'scheduled'")
+    parser.add_argument("-lists", "-l", action=argparse.BooleanOptionalAction, help="Show full decklists instead of card stats")
     
     args = vars(parser.parse_args())
 
@@ -76,15 +78,18 @@ if __name__ == "__main__":
             f.write(xml)
             print(f"Preferences saved to {saveName}")
 
-    # Check that mandatory values were included either as input or in XML
-    missing = []
-    requiredArgs = ["dataset"]
-    for arg in requiredArgs:
-        if args[arg] == None:
-            missing.append(arg)
-            print(f"Error: no value specified for {arg}.")
-    if len(missing) > 0:
-        quit()
+    # Check that mandatory values for getDecks were included either as input or in XML
+    # First check that no operations that happen separately from these required args are enabled. In that case these are not actually required
+
+    if not args["fprops"] and not args["save"]:
+        missing = []
+        requiredArgs = ["dataset"]
+        for arg in requiredArgs:
+            if args[arg] == None:
+                missing.append(arg)
+                print(f"Error: no value specified for {arg}.")
+        if len(missing) > 0:
+            quit()
 
 
     # Format values to pass to CA:
@@ -92,7 +97,7 @@ if __name__ == "__main__":
     # Dataset
     dataset = args["dataset"]
 
-    if ".json" not in dataset:
+    if dataset != None and ".json" not in dataset:
         dataset += ".json"
     
     if args["dsPath"] != None:
@@ -120,19 +125,22 @@ if __name__ == "__main__":
     if len(searchIn) == 0:
         searchIn = None
 
-    # Make call to card_analyzer
-    print(
-        ca.getCardPrevalence(
-            ca.getDecks(
-                dataset=dataset,
-                whitelist=args["whitelist"],
-                blacklist=args["blacklist"],
-                player=args["player"],
-                minDate=args["start"],
-                maxDate=args["end"],
-                searchIn=searchIn,
-                eventType=args["event"]
-            ),
-            args["type"]
-        )
-    )        
+    if args["fprops"]:
+        ca.loadCardProperties(True)
+
+    if dataset != None:
+        decks = ca.getDecks(
+                        dataset=dataset,
+                        whitelist=args["whitelist"],
+                        blacklist=args["blacklist"],
+                        player=args["player"],
+                        minDate=args["start"],
+                        maxDate=args["end"],
+                        searchIn=searchIn,
+                        eventType=args["event"]
+                    )
+    
+        if args["lists"]:
+            print(ca.displayDecks(decks))
+        else:
+            print(ca.getCardPrevalence(decks, args["type"]))   

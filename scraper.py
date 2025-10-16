@@ -23,13 +23,15 @@ Tribal / Kindred are no longer used (they just use the other type)
 "Cards" follows the quantity of maindeck cards and doses not have a "(". No legal cards have a name that conflicts with this weaker separator
 '''
 
-DRIVER_TIMEOUT = 8
+DRIVER_TIMEOUT = 4
 
 chromedriver_autoinstaller.install()
 chromeOptions = Options()
 chromeOptions.add_argument("--headless")
 chromeOptions.add_argument("--log-level=3") # Ignore unimpactful errors
 chromeOptions.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2,}) # Prevent images from loading
+chromeOptions.add_argument("--no-sandbox") # Attempt to fix linux error
+chromeOptions.add_argument("--disable-dev-shm-usage") # Attempt to fix linux error
 
 try:
     driver = webdriver.Chrome(options=chromeOptions)
@@ -54,26 +56,42 @@ def updateCardPropertiesDataset() -> None:
 
     out = {}
     for c in re.json():
-        if c["layout"] in ["vanguard", "art_series", "planar", "scheme"]:
+        if c["set_type"] in ["vanguard", "token", "memorabilia", "alchemy", "minigame"]:
             continue
+        if c["layout"] in ["art_series", "planar", "scheme"]:
+            continue
+        
+
         name = c["name"]
         lowerName = unidecode(name).lower().split(" //")[0]
         uri = c["scryfall_uri"]
         type = c["type_line"]
-        
-        if "mana_cost" in c:
-            manaCost = c["mana_cost"]
-        else:
-            manaCost = "{0}"
-        
-        if "cmc" in c:
-            cmc = c["cmc"]
-        else:
-            cmc = 0
+        cmc = c["cmc"]
 
-        # oracle = c["oracle_text"]
         
-        out[lowerName] = {"displayName": name, "type": type, "uri": uri, "manaCost": manaCost, "cmc": cmc}
+        if "card_faces" in c.keys():
+            front = c["card_faces"][0]
+            back = c["card_faces"][1]
+
+            if back["mana_cost"] == "":
+                back["mana_cost"] == "None"
+            
+            if back["mana_cost"]:
+                manaCost = " // ".join([front["mana_cost"], back["mana_cost"]])
+            else:
+                manaCost = front["mana_cost"]
+            oracle = "\n//\n".join([front["oracle_text"], back["oracle_text"]])
+
+        else:
+
+            if "mana_cost" in c:
+                manaCost = c["mana_cost"]
+            else:
+                manaCost = "None"
+
+            oracle = c["oracle_text"]
+        
+        out[lowerName] = {"displayName": name, "type": type, "uri": uri, "manaCost": manaCost, "cmc": cmc, "oracle": oracle}
 
 
     with open("Data/card_properties.json", "wb") as f:
@@ -104,26 +122,28 @@ def scrapeUrls(datasetFile: str, urls: list[str]) -> None:
         urlEnding = url.replace("https://www.mtgo.com/decklist/", "")
         try:
             driver.get(url)
-            wait = WebDriverWait(driver, DRIVER_TIMEOUT)
-            wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'decklist-item-page')))
-            # try:
+
+            # If decklists-list class if found then the driver must have been redirected due to the url being dead
+            WebDriverWait(driver, DRIVER_TIMEOUT).until(lambda driver: driver.find_elements(By.CLASS_NAME, "decklist-item-page") 
+                                                        or driver.find_elements(By.CLASS_NAME, "decklist-title"))
+            
             content = driver.find_elements(By.CLASS_NAME, 'decklist')
             if len(content) == 0:
-                print(f"Error: no decks present at {url}")
-                deadUrls.append(urlEnding)
-                continue
+                print(f"No decks found at {url} Please retry it")
 
-            print(f"Gathering {len(content)} decks from", url)
-            scrapedUrls.append(urlEnding)
+                erroredUrls.append(urlEnding)
+                continue
+            elif driver.find_elements(By.CLASS_NAME, 'decklists-page'):
+                print("WAS REDIRECTED " + url)
+                deadUrls.append(urlEnding)
+                # raise Exception("ERORR: was redirected")
+            else:
+                print(f"Gathering {len(content)} decks from", url)
+                scrapedUrls.append(urlEnding)
             
         except selenium.common.exceptions.TimeoutException:
-            if driver.current_url == "https://www.mtgo.com/decklists":
-                # Page was removed
-                print(f"Error: {url} was removed.")
-                deadUrls.append(urlEnding)
-                continue
             erroredUrls.append(urlEnding)
-            print(driver.current_url)
+            print(f"Failed to reach {url} Please retry it") # DEBUG
             continue
 
         for decklist in content:
@@ -217,6 +237,7 @@ def getNewUrls(datasetFile: str, format: str, date: str) -> list[str]:
         return []
     
     content = driver.find_elements(By.PARTIAL_LINK_TEXT, format)
+
     if len(content) == 0:
         print(f"Error: No {format} decklists found at {listingUrl}'")
         storedUrls["failed"]["dead"] = list(set([date] + storedUrls["failed"]["dead"]))
@@ -229,10 +250,6 @@ def getNewUrls(datasetFile: str, format: str, date: str) -> list[str]:
 
     for l in content:
         foundUrls.append(l.get_attribute("href"))
-
-    # createUrlFileIfNotExist(urlFileName)
-    # with open(urlFileName, "r") as f:
-    #     storedUrls = json.loads(f.read())
 
     for url in foundUrls:
         urlEnding = url.replace("https://www.mtgo.com/decklist/", "")
