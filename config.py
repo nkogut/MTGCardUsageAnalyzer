@@ -4,7 +4,7 @@ from pathlib import Path
 
 # Daily Aggregates
 AGG_START_DATE = pd.Timestamp("2022-12-01")
-AGG_PLAY_RATE_PATH = "goat/playrates.parquet"
+AGG_PLAY_RATE_PATH = Path("aggregate_data/playrates.parquet")
 
 # Data Paths
 DATA_DIR = Path("Data")
@@ -35,7 +35,7 @@ MTGO_DECKLIST_PREFIX = "https://www.mtgo.com/decklist/"
 MTGO_DECKLISTS_LIST_PREFIX = "https://www.mtgo.com/decklists/"
 
 # Default settings
-SCRAPER_DRIVER_TIMEOUT = 4
+DRIVER_TIMEOUT = 4
 DEFAULT_GRACE_DAYS = 7
 
 # ==== Analyzer ====

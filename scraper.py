@@ -16,29 +16,24 @@ import pandas as pd
 from pathlib import Path
 import config
 
-import chromedriver_autoinstaller
+# import chromedriver_autoinstaller
 
+def init_driver() -> webdriver.Chrome:
+    # chromedriver_autoinstaller.install()
+    chromeOptions = Options()
+    chromeOptions.add_argument("--headless=new")
+    chromeOptions.add_argument("--window-size=1920,1080")
+    chromeOptions.add_argument("--log-level=3")
+    chromeOptions.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
+    chromeOptions.add_argument("--no-sandbox")
+    chromeOptions.add_argument("--disable-dev-shm-usage")
+    chromeOptions.page_load_strategy = 'eager'
 
-''' 
-Notes on other types: 
-Battles are "Other ("
-Tribal / Kindred are no longer used (they just use the other type)
-"Cards" follows the quantity of maindeck cards and doses not have a "(". No legal cards have a name that conflicts with this weaker separator
-'''
-
-chromedriver_autoinstaller.install()
-chromeOptions = Options()
-chromeOptions.add_argument("--headless")
-chromeOptions.add_argument("--log-level=3") # Ignore unimpactful errors
-chromeOptions.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2,}) # Prevent images from loading
-chromeOptions.add_argument("--no-sandbox") # Attempt to fix linux error
-chromeOptions.add_argument("--disable-dev-shm-usage") # Attempt to fix linux error
-
-try:
-    driver = webdriver.Chrome(options=chromeOptions)
-except selenium.common.exceptions.SessionNotCreatedException as e:
-    print("Error: Issue with ChromeDriver, cannot create Selenium Session")
-    raise e
+    try:
+        return webdriver.Chrome(options=chromeOptions)
+    except selenium.common.exceptions.SessionNotCreatedException as e:
+        print("Error: Issue with ChromeDriver, cannot create Selenium Session")
+        raise e
 
 def updateCardPropertiesDataset() -> None: 
     """
@@ -47,15 +42,14 @@ def updateCardPropertiesDataset() -> None:
     as this is faster than loading the existing one to modify it
     """
 
-    # get link to most recent bulk data file from Scryfall
-    re = requests.get(config.SCRYFALL_BULK_DATA_URL)
+    # Get a link to the most recent Scryfall bulk data file 
+    re = requests.get(config.SCRYFALL_BULK_DATA_URL, timeout=10)
     re.raise_for_status()
     bulkDatasetLink = re.text.split("Oracle Cards")[1]
     bulkDatasetLink = bulkDatasetLink.split('href="')[1].split('">')[0]
     # e.g. https://data.scryfall.io/oracle-cards/oracle-cards-20260827090202.jsonl.gz
 
-    # call api for that file
-    re = requests.get(bulkDatasetLink, stream=True)
+    re = requests.get(bulkDatasetLink, stream=True, timeout=30)
     re.raise_for_status()
 
     out = {}
@@ -103,7 +97,7 @@ def updateCardPropertiesDataset() -> None:
     config.CARD_PROPERTIES_PATH.write_bytes(json.dumps(out))
     print("successfully updated card properties dataset from Scryfall\n")
 
-def scrapeUrls(datasetFile: Path, urls: list[str], killFailures: bool = False) -> None:
+def scrapeUrls(driver: webdriver.Chrome, datasetFile: Path, urls: list[str], killFailures: bool = False) -> None:
     """
     Scrapes all given urls from www.mtgo.com/decklists/... to extract deck information
     writes to the output_file information in json format: payer name, url of event, event date, maindeck, sideboard
@@ -129,14 +123,18 @@ def scrapeUrls(datasetFile: Path, urls: list[str], killFailures: bool = False) -
             driver.get(url)
 
             # If decklists-list class if found then the driver must have been redirected due to the url being dead
-            WebDriverWait(driver, config.DRIVER_TIMEOUT).until(lambda driver: driver.find_elements(By.CLASS_NAME, "decklist-item-page") 
-                                                        or driver.find_elements(By.CLASS_NAME, "decklist-title"))
+            WebDriverWait(driver, config.DRIVER_TIMEOUT).until(
+                EC.any_of(
+                    EC.presence_of_element_located((By.CLASS_NAME, "decklist-item-page")),
+                    EC.presence_of_element_located((By.CLASS_NAME, "decklist-title"))
+                )
+            )
             
             content = driver.find_elements(By.CLASS_NAME, 'decklist')
-            if len(content) == 0:
+            if not content:
                 if len(driver.find_elements(By.CLASS_NAME, 'decklist-posted-on')) != 0: 
-                    # The page definitely loaded, but no decks found
-                    # This can happen with any event type
+                    # The page succesfully loaded but no decks were found
+
                     print(f"{url} has no decks. Killing it.")
                     deadUrls.append(urlEnding)
                     continue
@@ -263,7 +261,7 @@ def dateFromUrl(url: str) -> str:
 
     return f"{year}-{month:02d}-{day:02d}"
 
-def getNewUrls(datasetFile: Path, format: str, date: str, killFailures: bool = False) -> list[str]:
+def getNewUrls(driver: webdriver.Chrome, datasetFile: Path, format: str, date: str, killFailures: bool = False) -> list[str]:
     """
     Gets each event url from a page with all events from a month that has not yet been scraped
     The date should have the format "yyyy/mm"
@@ -282,7 +280,7 @@ def getNewUrls(datasetFile: Path, format: str, date: str, killFailures: bool = F
 
     try:
         driver.get(listingUrl)
-        wait = WebDriverWait(driver, config.SCRAPER_DRIVER_TIMEOUT)
+        wait = WebDriverWait(driver, config.DRIVER_TIMEOUT)
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, "decklists-list")))
     except selenium.common.exceptions.TimeoutException:
         print(f"Error: Unable to access {listingUrl}. Please try them again with 'python scrape.py <dataset> <format> -err'\n")
@@ -319,7 +317,7 @@ def getNewUrls(datasetFile: Path, format: str, date: str, killFailures: bool = F
 
     return newUrls
 
-def scrapeUrlsByMonth(datasetFile: Path, format: str, skip: bool, grace: Optional[int] = 7, startDate: Optional[str] = None, endDate: Optional[str] = None) -> None:
+def scrapeUrlsByMonth(driver: webdriver.Chrome, datasetFile: Path, format: str, skip: bool, grace: Optional[int] = 7, startDate: Optional[str] = None, endDate: Optional[str] = None) -> None:
     """
     Scrape one or more months of data for one format, and add data to datasetFile
     date inputs should be like 'yyyy/mm'
@@ -346,9 +344,9 @@ def scrapeUrlsByMonth(datasetFile: Path, format: str, skip: bool, grace: Optiona
     dates = utils.getDatesBetweenMonths(startDate, endDate)
 
     for date in dates:
-        scrapeUrls(datasetFile, getNewUrls(datasetFile, format, date))
+        scrapeUrls(driver, datasetFile, getNewUrls(driver, datasetFile, format, date))
 
-def retryErroredUrls(dsPath: Path, format: str, killFailures: bool = False):
+def retryErroredUrls(driver: webdriver.Chrome, dsPath: Path, format: str, killFailures: bool = False):
     urlPath = config.DATA_DIR / f"{dsPath.stem}{config.URLS_FILE_SUFFIX}"
     urls = json.loads(urlPath.read_bytes())
     
@@ -356,14 +354,14 @@ def retryErroredUrls(dsPath: Path, format: str, killFailures: bool = False):
     numFailedListings = len(urls["failed"]["listing"])
 
     for date in urls["failed"]["listing"]:
-        scrapeUrls(dsPath, getNewUrls(dsPath, format, date, killFailures=killFailures), killFailures=killFailures)
+        scrapeUrls(driver, dsPath, getNewUrls(dsPath, format, date, killFailures=killFailures), killFailures=killFailures)
 
         # Get updated urls after listing retries have occurred
     if numFailedEvents > 0:
         urls = json.loads(urlPath.read_bytes())
     fullUrls = [config.MTGO_DECKLIST_PREFIX + urlEnding for urlEnding in urls["failed"]["event"]]
 
-    scrapeUrls(dsPath, fullUrls, killFailures=killFailures)
+    scrapeUrls(driver, dsPath, fullUrls, killFailures=killFailures)
 
     # Get updated urls after retries have occurred
     urls = json.loads(urlPath.read_bytes())

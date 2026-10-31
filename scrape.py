@@ -29,10 +29,13 @@ if __name__ == "__main__":
     args.grace = int(args.grace)
 
     startTime = time.time()
-    if (args.kill):
-        scraper.retryErroredUrls(dataset, args.format, killFailures=True)
-    elif (args.retry):
-        scraper.retryErroredUrls(dataset, args.format, killFailures=False)
-    else:
-        scraper.scrapeUrlsByMonth(dataset, args.format, args.skip, grace=args.grace, startDate=args.start, endDate=args.end)
+
+    with scraper.init_driver() as driver:
+        if args.kill:
+            scraper.retryErroredUrls(driver, dataset, args.format, killFailures=True)
+        elif args.retry:
+            scraper.retryErroredUrls(driver, dataset, args.format, killFailures=False)
+        else:
+            scraper.scrapeUrlsByMonth(driver, dataset, args.format, args.skip, grace=args.grace, startDate=args.start, endDate=args.end)
+    
     print(f"Operation completed in {time.time() - startTime} seconds")
