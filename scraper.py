@@ -15,20 +15,17 @@ import utils
 from collections import defaultdict, Counter
 import pandas as pd
 from pathlib import Path
-from config import AGG_PLAY_RATE_PATH, AGG_START_DATE
+import config
 
 import chromedriver_autoinstaller
 
-CARD_TYPE_SEPARATORS = ["Creature (", "Land (", "Instant (", "Sorcery (", "Artifact (", "Enchantment (", "Planeswalker (",
-                        "Other (", "Rarity", "Cards"]
+
 ''' 
 Notes on other types: 
 Battles are "Other ("
 Tribal / Kindred are no longer used (they just use the other type)
 "Cards" follows the quantity of maindeck cards and doses not have a "(". No legal cards have a name that conflicts with this weaker separator
 '''
-
-DRIVER_TIMEOUT = 4
 
 chromedriver_autoinstaller.install()
 chromeOptions = Options()
@@ -52,7 +49,7 @@ def updateCardPropertiesDataset() -> None:
     """
 
     # get link to most recent bulk data file from Scryfall
-    re = requests.get("https://scryfall.com/docs/api/bulk-data")
+    re = requests.get(config.SCRYFALL_BULK_DATA_URL)
     re.raise_for_status()
     bulkDatasetLink = re.text.split("Oracle Cards")[1]
     bulkDatasetLink = bulkDatasetLink.split('href="')[1].split('">')[0]
@@ -67,9 +64,9 @@ def updateCardPropertiesDataset() -> None:
         for line in f:
             c = json.loads(line)
 
-            if c["set_type"] in ["vanguard", "token", "memorabilia", "alchemy", "minigame"]:
+            if c["set_type"] in config.SCRYFALL_IGNORED_SET_TYPES:
                 continue
-            if c["layout"] in ["art_series", "planar", "scheme"]:
+            if c["layout"] in config.SCRYFALL_IGNORED_LAYOUTS:
                 continue
 
             name = c["name"]
@@ -104,7 +101,7 @@ def updateCardPropertiesDataset() -> None:
             out[lowerName] = {"displayName": name, "type": type, "uri": uri, "manaCost": manaCost, "cmc": cmc, "oracle": oracle}
 
 
-    with open("Data/card_properties.json", "wb") as f:
+    with open(config.CARD_PROPERTIES_PATH, "wb") as f:
         f.write(json.dumps(out))
 
     print("successfully updated card properties dataset from Scryfall\n")
@@ -120,7 +117,7 @@ def scrapeUrls(datasetFile: str, urls: list[str], killFailures: bool = False) ->
         return
 
     datasetName = datasetFile.split("/")[-1].split(".")[0]
-    urlFileName = f"Data/{datasetName}_urls.json"
+    urlFileName = f"{config.DATA_DIR}{datasetName}{config.URLS_FILE_SUFFIX}"
     scrapedUrls = []
     erroredUrls = []
     deadUrls = []
@@ -130,12 +127,12 @@ def scrapeUrls(datasetFile: str, urls: list[str], killFailures: bool = False) ->
 
     print(f"Scraping {len(urls)} events")
     for url in urls:
-        urlEnding = url.replace("https://www.mtgo.com/decklist/", "")
+        urlEnding = url.replace(config.MTGO_DECKLIST_PREFIX, "")
         try:
             driver.get(url)
 
             # If decklists-list class if found then the driver must have been redirected due to the url being dead
-            WebDriverWait(driver, DRIVER_TIMEOUT).until(lambda driver: driver.find_elements(By.CLASS_NAME, "decklist-item-page") 
+            WebDriverWait(driver, config.DRIVER_TIMEOUT).until(lambda driver: driver.find_elements(By.CLASS_NAME, "decklist-item-page") 
                                                         or driver.find_elements(By.CLASS_NAME, "decklist-title"))
             
             content = driver.find_elements(By.CLASS_NAME, 'decklist')
@@ -188,7 +185,7 @@ def scrapeUrls(datasetFile: str, urls: list[str], killFailures: bool = False) ->
                 if "Sideboard" in deckContents[i]:
                     md = False
                     continue
-                for t in CARD_TYPE_SEPARATORS:
+                for t in config.CARD_TYPE_SEPARATORS:
                     if t in deckContents[i]:
                         break
                 else:
@@ -204,7 +201,7 @@ def scrapeUrls(datasetFile: str, urls: list[str], killFailures: bool = False) ->
                     else:
                         deck["side"][card] = int(quantity)
 
-                    if today_timestamp >= AGG_START_DATE:
+                    if today_timestamp >= config.AGG_START_DATE:
                         daily_counts[today_timestamp][card] += int(quantity)
 
             numDecks += 1
@@ -220,15 +217,15 @@ def scrapeUrls(datasetFile: str, urls: list[str], killFailures: bool = False) ->
         new_df = new_df.set_index(["date", "format", "card"])
 
         # merge with existing data
-        if Path(AGG_PLAY_RATE_PATH).exists():
-            df = pd.read_parquet(AGG_PLAY_RATE_PATH)
+        if Path(config.AGG_PLAY_RATE_PATH).exists():
+            df = pd.read_parquet(config.AGG_PLAY_RATE_PATH)
             df = (pd.concat([df, new_df]))
         else:
             df = new_df.copy()
 
         df = (df.groupby(level=["date", "format", "card"]).sum().sort_index()
 )
-        df.to_parquet(AGG_PLAY_RATE_PATH, compression="snappy")
+        df.to_parquet(config.AGG_PLAY_RATE_PATH, compression="snappy")
     
 
     createDatasetFileIfNotExist(datasetFile)
@@ -274,9 +271,9 @@ def getNewUrls(datasetFile: str, format: str, date: str, killFailures: bool = Fa
     The date should have the format "yyyy/mm"
     """
     format = format.title()
-    listingUrl = f"https://www.mtgo.com/decklists/{date}?filter={format}"
+    listingUrl = f"{config.MTGO_DECKLISTS_LIST_PREFIX}{date}?filter={format}"
     datasetName = datasetFile.split("/")[-1].split(".")[0]
-    urlFileName = f"Data/{datasetName}_urls.json"
+    urlFileName = f"{config.DATA_DIR}{datasetName}{config.URLS_FILE_SUFFIX}"
     foundUrls = []
     newUrls = []
 
@@ -286,7 +283,7 @@ def getNewUrls(datasetFile: str, format: str, date: str, killFailures: bool = Fa
 
     try:
         driver.get(listingUrl)
-        wait = WebDriverWait(driver, DRIVER_TIMEOUT)
+        wait = WebDriverWait(driver, config.DRIVER_TIMEOUT)
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, "decklists-list")))
     except selenium.common.exceptions.TimeoutException:
         print(f"Error: Unable to access {listingUrl}. Please try them again with 'python scrape.py <dataset> <format> -err'\n")
@@ -314,7 +311,7 @@ def getNewUrls(datasetFile: str, format: str, date: str, killFailures: bool = Fa
         foundUrls.append(l.get_attribute("href"))
 
     for url in foundUrls:
-        urlEnding = url.replace("https://www.mtgo.com/decklist/", "")
+        urlEnding = url.replace(config.MTGO_DECKLIST_PREFIX, "")
         if urlEnding not in storedUrls["completed"] and urlEnding not in storedUrls["failed"]["dead"]:
             newUrls.append(url)
 
@@ -341,10 +338,10 @@ def scrapeUrlsByMonth(datasetFile: str, format: str, skip: bool, grace: Optional
 
     if startDate == None:
         # scrape the previous [grace] days to prevent coverage issues with automated usage
-        startDate = (datetime.today() - timedelta(days=grace)).strftime("%Y/%m")
+        startDate = (datetime.today() - timedelta(days=grace)).strftime(config.DATE_FMT_CLI)
 
     if endDate == None:
-        endDate = datetime.today().strftime("%Y/%m")
+        endDate = datetime.today().strftime(config.DATE_FMT_CLI)
 
     if (startDate > endDate):
         print("Error: Start Date comes after End Date")
@@ -356,7 +353,7 @@ def scrapeUrlsByMonth(datasetFile: str, format: str, skip: bool, grace: Optional
         scrapeUrls(datasetFile, getNewUrls(datasetFile, format, date))
 
 def retryErroredUrls(dsPath: str, format: str, killFailures: bool = False):
-    urlPath = dsPath.replace(".json", "_urls.json")
+    urlPath = dsPath.replace(".json", config.URLS_FILE_SUFFIX)
     with open(urlPath, "r") as f:
         urls = json.loads(f.read())
     
@@ -370,7 +367,7 @@ def retryErroredUrls(dsPath: str, format: str, killFailures: bool = False):
     if numFailedEvents > 0:
         with open(urlPath, "r") as f:
             urls = json.loads(f.read())
-    fullUrls = ["https://www.mtgo.com/decklist/" + urlEnding for urlEnding in urls["failed"]["event"]]
+    fullUrls = [config.MTGO_DECKLIST_PREFIX + urlEnding for urlEnding in urls["failed"]["event"]]
 
     scrapeUrls(dsPath, fullUrls, killFailures=killFailures)
 

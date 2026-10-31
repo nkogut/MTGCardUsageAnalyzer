@@ -2,6 +2,8 @@ import scraper
 import argparse
 import time
 
+from config import DEFAULT_GRACE_DAYS
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("scrape")
     parser.add_argument("dataset", help="file name with or without file extension. e.g. 'full_modern'")
@@ -21,8 +23,7 @@ if __name__ == "__main__":
 
     args.format = args.format.lower()
 
-    if args.grace == None:
-        args.grace = 7
+    args.grace = DEFAULT_GRACE_DAYS if args.grace is None else args.grace
     args.grace = int(args.grace)
 
     startTime = time.time()

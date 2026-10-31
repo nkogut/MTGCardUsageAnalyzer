@@ -4,14 +4,10 @@ from typing import Union, Optional
 from os import path
 import string
 import scraper
+import config
 
 DECK_ENTRY = dict[str, Union[str, dict[str, int]]]
 DATASET_CHUNK_TYPE = list[DECK_ENTRY]
-EVENT_TYPES = { "league": ["league", "gold", "daily"],
-                "scheduled": ["prelim", "challenge", "ptq", "championship", "qualifier", "playoff", "finals", "last-chance"]}
-SEARCH_IN_DEFAULT = ["main", "side"]
-CARD_PROPERTIES_PATH = "Data/card_properties.json"
-
 
 def loadDataset(dataset: str) -> DATASET_CHUNK_TYPE:
     # The dataset is a list of dictionaries, each of which represents 1 deck entry
@@ -30,8 +26,7 @@ def displayDecks(decks: DATASET_CHUNK_TYPE | None) -> str:
             main = sorted(deck['main'].keys(), key=lambda x: cardProperties[x]['cmc'])
             side = sorted(deck['side'].keys(), key=lambda x: cardProperties[x]['cmc'])
         except KeyError:
-            # The Data/card_properties.json dataset is out of date. In this case do not sort on cmc
-            print("Error: Card Properties is out of date. Please update it with 'python analyze.py -fprops'")
+            print("Error: The card properties cache is out of date. Please update it with 'python analyze.py -fprops'")
             main = deck['main']
             side = deck['side']
 
@@ -53,8 +48,8 @@ def getDecks(dataset: str,
                whitelist: Optional[list[str]] = None,
                blacklist: Optional[list[str]] = None,
                player: Optional[str | None] = None,
-               minDate: Optional[datetime.date] = date(1900, 1, 1),
-               maxDate: Optional[datetime.date] = date(2100, 1, 1),
+               minDate: Optional[datetime.date] = config.DEFAULT_MIN_DATE,
+               maxDate: Optional[datetime.date] = config.DEFAULT_MAX_DATE,
                searchIn: Optional[list[str]] = None,
                eventType: Optional[list[str]] = None) -> DATASET_CHUNK_TYPE:
     """
@@ -72,15 +67,12 @@ def getDecks(dataset: str,
     blacklist = [v.lower() for v in blacklist]
 
     if searchIn is None:
-        searchIn = SEARCH_IN_DEFAULT
+        searchIn = config.SEARCH_IN_DEFAULT
 
-    if eventType is None:
-        eventType = ["league", "scheduled"]
-    else:
-        eventType = [v.lower() for v in eventType]
+    eventType = [v.lower() for v in eventType] if eventType else config.DEFAULT_EVENT_TYPES
 
     # Faster to search string than search each element
-    matchableEvents = "@".join([("@".join(EVENT_TYPES[k])) for k in eventType]) 
+    matchableEvents = "@".join([("@".join(config.EVENT_TYPES[k])) for k in eventType]) 
 
     dataset = loadDataset(dataset)
     foundDecks = []
@@ -88,8 +80,8 @@ def getDecks(dataset: str,
     if player:
         player = player.lower()
 
-    minDate = minDate.strftime('%Y-%m-%d')
-    maxDate = maxDate.strftime('%Y-%m-%d')
+    minDate = minDate.strftime(config.DATE_FMT_DECK)
+    maxDate = maxDate.strftime(config.DATE_FMT_DECK)
     dataset = [deck for deck in dataset if minDate <= deck["date"] <= maxDate]
 
     for decklist in dataset:
@@ -155,7 +147,7 @@ def getCardPrevalence(sample: str, showTypes: Optional[list[str]] = None) -> str
     output = ""
     unrecoginzableCards = [] # Track cards that cannot match cardProperties so they do not get logged multiple times
 
-    for location in SEARCH_IN_DEFAULT:
+    for location in config.SEARCH_IN_DEFAULT:
         locDict = prevalenceDict[location]
         for deck in sample:
             for card in deck[location]:
@@ -176,7 +168,7 @@ def getCardPrevalence(sample: str, showTypes: Optional[list[str]] = None) -> str
     maxQuantityLen = len(str(max(prevalenceDict["main"].values(), key=lambda x: x[0])[0]))            
 
     # Add maindeck or sideboard to output
-    for location in SEARCH_IN_DEFAULT:
+    for location in config.SEARCH_IN_DEFAULT:
         if location == "side":
             output += "\n\n---SIDEBOARD---\n"
 
@@ -210,7 +202,7 @@ def getCardPrevalenceForGoat(sample: dict, recognizeableCards: Optional[list[str
 
     numDecks = 0
     numCards = 0
-    for location in SEARCH_IN_DEFAULT:
+    for location in config.SEARCH_IN_DEFAULT:
         for deck in sample:
             numDecks += 1
             for card in deck[location]:
@@ -225,9 +217,9 @@ def getCardPrevalenceForGoat(sample: dict, recognizeableCards: Optional[list[str
     return prevalenceDict
 
 def loadCardProperties(force):
-    if not path.isfile(CARD_PROPERTIES_PATH) or force:
+    if not path.isfile(config.CARD_PROPERTIES_PATH) or force:
         print("Updating Card Properties dataset")
         scraper.updateCardPropertiesDataset()
 
-    with open(CARD_PROPERTIES_PATH, "rb") as f:
+    with open(config.CARD_PROPERTIES_PATH, "rb") as f:
         return json.loads(f.read())

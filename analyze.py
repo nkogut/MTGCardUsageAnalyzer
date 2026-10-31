@@ -5,6 +5,8 @@ import string
 import card_analyzer as ca
 from datetime import datetime
 
+import config
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("analyze")
@@ -106,14 +108,11 @@ if __name__ == "__main__":
         dataset = args["dsPath"] + dataset
 
     # Dates
-    if args["start"] == None:
-        args["start"] = "2010/01"
+    args["start"] = args["start"] or config.DEFAULT_MIN_DATE_STR
+    args["end"] = args["end"] or config.DEFAULT_MIN_DATE_STR
 
-    if args["end"] == None:
-        args["end"] = "2110/01"
-
-    args["start"] = datetime.strptime(args["start"], "%Y/%m").date()
-    args["end"] = datetime.strptime(args["end"], "%Y/%m").date()
+    args["start"] = datetime.strptime(args["start"], config.DATE_FMT_CLI).date()
+    args["end"] = datetime.strptime(args["end"], config.DATE_FMT_CLI).date()
 
     # Deck / Event
     searchIn = []
@@ -122,8 +121,7 @@ if __name__ == "__main__":
     if args["side"]:
         searchIn.append("side")
 
-    if len(searchIn) == 0:
-        searchIn = None
+    searchIn = searchIn or None
 
     if args["fprops"]:
         ca.loadCardProperties(True)
