@@ -11,6 +11,7 @@ if __name__ == "__main__":
     parser.add_argument("-grace", nargs="?", help="# of days before start date to begin scraping. Intended to prevent coverage issues when automated. \nOnly applies if no start date is given. Default: 7")
     parser.add_argument("-skip", action=argparse.BooleanOptionalAction, help="Skip updating card dictionary references. Only use if no new cards have been added to Scryfall recently")
     parser.add_argument("-retry", action=argparse.BooleanOptionalAction, help="Retry all urls which failed previously instaed of a normal scrape.")
+    parser.add_argument("-kill", action=argparse.BooleanOptionalAction, help="Retry failed urls, and permanently remove them. Use after many retries with no improvement")
     
     # Format args and set default values
     args = parser.parse_args()
@@ -25,8 +26,10 @@ if __name__ == "__main__":
     args.grace = int(args.grace)
 
     startTime = time.time()
-    if (args.retry):
-        scraper.retryErroredUrls(args.dataset, args.format)
+    if (args.kill):
+        scraper.retryErroredUrls(args.dataset, args.format, killFailures=True)
+    elif (args.retry):
+        scraper.retryErroredUrls(args.dataset, args.format, killFailures=False)
     else:
         scraper.scrapeUrlsByMonth(args.dataset, args.format, args.skip, grace=args.grace, startDate=args.start, endDate=args.end)
     print(f"Operation completed in {time.time() - startTime} seconds")

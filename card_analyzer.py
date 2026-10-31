@@ -18,14 +18,11 @@ def loadDataset(dataset: str) -> DATASET_CHUNK_TYPE:
     with open(dataset, "r") as f:
         return json.loads(f.read())
 
-
 def displayDecks(decks: DATASET_CHUNK_TYPE | None) -> str:
+    output = ""
+    cardProperties = loadCardProperties(force=False)
     if decks is None:
         decks = []
-
-    cardProperties = loadCardProperties(force=False)
-
-    output = ""
 
     for deck in decks:
         output += f"\n {deck['player']} {deck['url']}"
@@ -51,7 +48,6 @@ def displayDecks(decks: DATASET_CHUNK_TYPE | None) -> str:
                 output += f"\n{card} - error retrieving CMC or quantity"
         output += "\n------ END OF DECK ------\n"
     return output
-
 
 def getDecks(dataset: str,
                whitelist: Optional[list[str]] = None,
@@ -86,15 +82,14 @@ def getDecks(dataset: str,
     # Faster to search string than search each element
     matchableEvents = "@".join([("@".join(EVENT_TYPES[k])) for k in eventType]) 
 
-
     dataset = loadDataset(dataset)
     foundDecks = []
 
-    minDate = str(minDate)
-    maxDate = str(maxDate)
     if player:
         player = player.lower()
 
+    minDate = minDate.strftime('%Y-%m-%d')
+    maxDate = maxDate.strftime('%Y-%m-%d')
     dataset = [deck for deck in dataset if minDate <= deck["date"] <= maxDate]
 
     for decklist in dataset:
@@ -117,23 +112,22 @@ def shouldAcceptDeck(searchIn: list[str], decklist: DECK_ENTRY, whitelist: list[
     Checks whether or not a deck should be included in a search based on whitelist/blacklist.
     Allows partial names in whitelist/blacklist (e.g. "bolt")
     """
-    remainingWhitelist = whitelist.copy()
+    if not whitelist and not blacklist:
+        return True
+    
     leftToMatch = len(whitelist)
-    blacklist = set(blacklist)
     cards = "@".join(["@".join(decklist[location].keys()) for location in searchIn])
 
     for b in blacklist:
         if b in cards:
             return False
         
-    for w in remainingWhitelist:
+    for w in whitelist:
         if w in cards:
             if leftToMatch <= 1:
                 return True
             leftToMatch -= 1
                 
-    return leftToMatch == 0
-
 def getCardPrevalence(sample: str, showTypes: Optional[list[str]] = None) -> string:
     """
     Calculates the prevalence of each card across all decks in sample and lists them in this order
@@ -203,6 +197,32 @@ def getCardPrevalence(sample: str, showTypes: Optional[list[str]] = None) -> str
             output += f"\n{cardProperties[card]['displayName']:<{maxCardLen}} | {quantity[0]:>{maxQuantityLen}} decks | {percentage:>5.2f}% | {avg:.2f} avg"
 
     return output
+
+def getCardPrevalenceForGoat(sample: dict, recognizeableCards: Optional[list[str]] = None) -> dict:
+    
+    if not sample:
+        return "No decks in sample"
+
+    if not recognizeableCards:
+        cardProperties = loadCardProperties(force=False)
+        recognizeableCards = cardProperties.keys()
+    prevalenceDict = {card: 0 for card in recognizeableCards}
+
+    numDecks = 0
+    numCards = 0
+    for location in SEARCH_IN_DEFAULT:
+        for deck in sample:
+            numDecks += 1
+            for card in deck[location]:
+                if card not in recognizeableCards:
+                    continue
+                # Count total cards, regardless of loc
+                numCards += deck[location][card]
+                prevalenceDict[card] += deck[location][card]
+    
+    prevalenceDict = {card: float(qty * numDecks) / numCards for card, qty in prevalenceDict.items()}
+
+    return prevalenceDict
 
 def loadCardProperties(force):
     if not path.isfile(CARD_PROPERTIES_PATH) or force:
