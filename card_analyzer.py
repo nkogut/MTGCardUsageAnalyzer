@@ -1,18 +1,18 @@
 import orjson as json
 from datetime import *
 from typing import Union, Optional
-from os import path
 import string
 import scraper
 import config
 
+from pathlib import Path
+
 DECK_ENTRY = dict[str, Union[str, dict[str, int]]]
 DATASET_CHUNK_TYPE = list[DECK_ENTRY]
 
-def loadDataset(dataset: str) -> DATASET_CHUNK_TYPE:
+def loadDataset(dataset: Path) -> DATASET_CHUNK_TYPE:
     # The dataset is a list of dictionaries, each of which represents 1 deck entry
-    with open(dataset, "r") as f:
-        return json.loads(f.read())
+    return dataset.read_bytes()
 
 def displayDecks(decks: DATASET_CHUNK_TYPE | None) -> str:
     output = ""
@@ -44,7 +44,7 @@ def displayDecks(decks: DATASET_CHUNK_TYPE | None) -> str:
         output += "\n------ END OF DECK ------\n"
     return output
 
-def getDecks(dataset: str,
+def getDecks(datasetPath: Path,
                whitelist: Optional[list[str]] = None,
                blacklist: Optional[list[str]] = None,
                player: Optional[str | None] = None,
@@ -74,7 +74,7 @@ def getDecks(dataset: str,
     # Faster to search string than search each element
     matchableEvents = "@".join([("@".join(config.EVENT_TYPES[k])) for k in eventType]) 
 
-    dataset = loadDataset(dataset)
+    dataset = json.loads(datasetPath.read_bytes())
     foundDecks = []
 
     if player:
@@ -134,7 +134,7 @@ def getCardPrevalence(sample: str, showTypes: Optional[list[str]] = None) -> str
     cardProperties = loadCardProperties(force=False)
     
     if showTypes:
-            showTypes = [string.capwords(t) for t in showTypes]
+        showTypes = [string.capwords(t) for t in showTypes]
 
     # Use this list of all cards in cardProperties to make sure an invalid key is never used.
     # This would only occur if the Scryfall API was briefly out of date when a new set is released. 
@@ -217,9 +217,8 @@ def getCardPrevalenceForGoat(sample: dict, recognizeableCards: Optional[list[str
     return prevalenceDict
 
 def loadCardProperties(force):
-    if not path.isfile(config.CARD_PROPERTIES_PATH) or force:
+    if not config.CARD_PROPERTIES_PATH.is_file() or force:
         print("Updating Card Properties dataset")
         scraper.updateCardPropertiesDataset()
 
-    with open(config.CARD_PROPERTIES_PATH, "rb") as f:
-        return json.loads(f.read())
+    return json.loads(config.CARD_PROPERTIES_PATH.read_bytes())

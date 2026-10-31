@@ -89,4 +89,4 @@ def createLineChart(consideredDecks: ca.DATASET_CHUNK_TYPE,
 if __name__ == "__main__":
     # sample chart
     createLineChart(cards=card_groups.MODERN_ARTIFACT_HATE,
-                      consideredDecks=ca.getDecks(dataset="Data/modern.json"))
+                      consideredDecks=ca.getDecks(datasetPath="Data/modern.json"))

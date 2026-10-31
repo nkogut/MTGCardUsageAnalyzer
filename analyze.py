@@ -3,7 +3,9 @@ import xml.etree.ElementTree as ET
 import ast
 import string
 import card_analyzer as ca
+
 from datetime import datetime
+from pathlib import Path
 
 import config
 
@@ -35,11 +37,9 @@ if __name__ == "__main__":
     args = vars(parser.parse_args())
 
     # Parse the XML tree if provided
-    prefs = args["prefs"]
-    if prefs != None:
-       try:
-            if ".xml" not in prefs:
-                prefs += ".xml"
+    if (prefs := args["prefs"]):
+        prefs_path = Path(prefs).with_suffix(config.XML_EXT)
+        try:
             tree = ET.parse(prefs)
             root = tree.getroot()
             for child in root:
@@ -48,18 +48,17 @@ if __name__ == "__main__":
                     value = child.text
                     if "[" in value:
                         value = ast.literal_eval(child.text)
-                      
+                    
                     args[child.tag] = value
 
-       except Exception as e: 
-           print(f"Error: could not parse {prefs}. Please check that it exists and is valid.")
-           quit()
+        except Exception as e: 
+            print(f"Error: could not parse {prefs_path}. Please check that it exists and is valid.")
+            quit()
 
     # Save the new XML tree including CLI args if requested by -save
-    saveName = args["save"]
-    if saveName != None:
-        # User must choose to save each time
-        args["save"] = None 
+    if args["save"]:
+        save_path = Path(args["save"]).with_suffix(config.XML_EXT)
+        args["save"] = None
         
         # Build XML tree
         root = ET.Element("prefs")
@@ -70,15 +69,10 @@ if __name__ == "__main__":
             child.text = str(v)
             root.append(child)
 
-        xml  = ET.tostring(root, encoding="unicode")
+        xml = ET.tostring(root, encoding="unicode")
 
-        # Save the XML
-        if ".xml" not in saveName:
-            saveName += ".xml"
-
-        with open(saveName, "w") as f:
-            f.write(xml)
-            print(f"Preferences saved to {saveName}")
+        save_path.write_text(xml)
+        print(f"Preferences saved to {save_path}")
 
     # Check that mandatory values for getDecks were included either as input or in XML
     # First check that no operations that happen separately from these required args are enabled. In that case these are not actually required
@@ -97,15 +91,15 @@ if __name__ == "__main__":
     # Format values to pass to CA:
 
     # Dataset
-    dataset = args["dataset"]
-
-    if dataset != None and ".json" not in dataset:
-        dataset += ".json"
-    
-    if args["dsPath"] != None:
-        if args["dsPath"][-1] != "/":
-            args["dsPath"] += "/"
-        dataset = args["dsPath"] + dataset
+    dataset = None
+    if args["dataset"]:
+        dataset = Path(args["dataset"])
+        
+        if dataset.suffix != config.JSON_EXT:
+            dataset = dataset.with_suffix(config.JSON_EXT)
+        
+        if args["dsPath"]:
+            dataset = Path(args["dsPath"]) / dataset
 
     # Dates
     args["start"] = args["start"] or config.DEFAULT_MIN_DATE_STR
@@ -128,7 +122,7 @@ if __name__ == "__main__":
 
     if dataset != None:
         decks = ca.getDecks(
-                        dataset=dataset,
+                        datasetPath=dataset,
                         whitelist=args["whitelist"],
                         blacklist=args["blacklist"],
                         player=args["player"],

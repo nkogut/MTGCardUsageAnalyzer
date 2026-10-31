@@ -2,7 +2,9 @@ import scraper
 import argparse
 import time
 
-from config import DEFAULT_GRACE_DAYS
+from pathlib import Path
+
+from config import DEFAULT_GRACE_DAYS, JSON_EXT
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("scrape")
@@ -17,20 +19,20 @@ if __name__ == "__main__":
     
     # Format args and set default values
     args = parser.parse_args()
-    if ".json" not in args.dataset:
-        args.dataset = args.dataset + ".json"
-    args.dataset = args.dataset.replace("\\", "/") # Account for different directory separators in Windows
+
+    dataset = Path(args.dataset)
+    if dataset.suffix != JSON_EXT:
+        dataset = dataset.with_suffix(JSON_EXT)
 
     args.format = args.format.lower()
-
     args.grace = DEFAULT_GRACE_DAYS if args.grace is None else args.grace
     args.grace = int(args.grace)
 
     startTime = time.time()
     if (args.kill):
-        scraper.retryErroredUrls(args.dataset, args.format, killFailures=True)
+        scraper.retryErroredUrls(dataset, args.format, killFailures=True)
     elif (args.retry):
-        scraper.retryErroredUrls(args.dataset, args.format, killFailures=False)
+        scraper.retryErroredUrls(dataset, args.format, killFailures=False)
     else:
-        scraper.scrapeUrlsByMonth(args.dataset, args.format, args.skip, grace=args.grace, startDate=args.start, endDate=args.end)
+        scraper.scrapeUrlsByMonth(dataset, args.format, args.skip, grace=args.grace, startDate=args.start, endDate=args.end)
     print(f"Operation completed in {time.time() - startTime} seconds")

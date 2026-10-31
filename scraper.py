@@ -7,7 +7,6 @@ from selenium.webdriver.chrome.options import Options
 import orjson as json
 import requests
 import gzip
-from os import path
 from datetime import *
 from typing import Optional
 from unidecode import unidecode
@@ -101,12 +100,10 @@ def updateCardPropertiesDataset() -> None:
             out[lowerName] = {"displayName": name, "type": type, "uri": uri, "manaCost": manaCost, "cmc": cmc, "oracle": oracle}
 
 
-    with open(config.CARD_PROPERTIES_PATH, "wb") as f:
-        f.write(json.dumps(out))
-
+    config.CARD_PROPERTIES_PATH.write_bytes(json.dumps(out))
     print("successfully updated card properties dataset from Scryfall\n")
 
-def scrapeUrls(datasetFile: str, urls: list[str], killFailures: bool = False) -> None:
+def scrapeUrls(datasetFile: Path, urls: list[str], killFailures: bool = False) -> None:
     """
     Scrapes all given urls from www.mtgo.com/decklists/... to extract deck information
     writes to the output_file information in json format: payer name, url of event, event date, maindeck, sideboard
@@ -116,8 +113,8 @@ def scrapeUrls(datasetFile: str, urls: list[str], killFailures: bool = False) ->
     if not urls:
         return
 
-    datasetName = datasetFile.split("/")[-1].split(".")[0]
-    urlFileName = f"{config.DATA_DIR}{datasetName}{config.URLS_FILE_SUFFIX}"
+    datasetName = datasetFile.stem
+    urlFile = config.DATA_DIR / f"{datasetName}{config.URLS_FILE_SUFFIX}"
     scrapedUrls = []
     erroredUrls = []
     deadUrls = []
@@ -217,7 +214,7 @@ def scrapeUrls(datasetFile: str, urls: list[str], killFailures: bool = False) ->
         new_df = new_df.set_index(["date", "format", "card"])
 
         # merge with existing data
-        if Path(config.AGG_PLAY_RATE_PATH).exists():
+        if config.AGG_PLAY_RATE_PATH.exists():
             df = pd.read_parquet(config.AGG_PLAY_RATE_PATH)
             df = (pd.concat([df, new_df]))
         else:
@@ -228,34 +225,35 @@ def scrapeUrls(datasetFile: str, urls: list[str], killFailures: bool = False) ->
         df.to_parquet(config.AGG_PLAY_RATE_PATH, compression="snappy")
     
 
-    createDatasetFileIfNotExist(datasetFile)
-    with open(datasetFile, "r") as f:
-        storedDecks = json.loads(f.read()) 
-        storedDecks += decks
-        storedDecks = sorted(storedDecks, key=lambda x: x["date"])
+    if datasetFile.is_file():
+        storedDecks = json.loads(datasetFile.read_bytes())
+    else:
+        storedDecks = []
+    
+    storedDecks += decks
+    storedDecks = sorted(storedDecks, key=lambda x: x["date"])
 
-    with open(datasetFile, "wb") as f:
-        print(f"Saving {numDecks} decklists to {datasetFile}")
-        f.write(json.dumps(storedDecks))
+    print(f"Saving {numDecks} decklists to {datasetFile}")
+    datasetFile.write_bytes(json.dumps(storedDecks))
 
-    createUrlFileIfNotExist(urlFileName)
-    with open(urlFileName, "r") as f:
-        storedUrls = json.loads(f.read())
-        storedUrls["completed"] += scrapedUrls
-        storedUrls["failed"]["event"] = [url for url in storedUrls["failed"]["event"] if url not in scrapedUrls and url not in deadUrls]
-        storedUrls["failed"]["event"] = list(set(erroredUrls + storedUrls["failed"]["event"]))
-        storedUrls["failed"]["dead"] = list(set(deadUrls + storedUrls["failed"]["dead"]))
 
-    numErrors = len(erroredUrls)
-    numDead = len(deadUrls)
-    if (numErrors) > 0:
-        print(f"\nError: Failed to reach {numErrors} Url{'s' if (numErrors > 1) else ''}. Please try them again with 'python scrape.py <dataset> <format> -retry'\n")
-    if (numDead) > 0:
+    if urlFile.is_file():
+        storedUrls = json.loads(urlFile.read_bytes())
+    else:
+        storedUrls = {"completed": [], "failed": {"listing": [], "event": [], "dead": []}}
+
+    storedUrls["completed"] += scrapedUrls
+    urlsToDrop = set(scrapedUrls + deadUrls)
+    storedUrls["failed"]["event"] = [url for url in storedUrls["failed"]["event"] if url not in urlsToDrop]
+    storedUrls["failed"]["event"] = list(set(erroredUrls + storedUrls["failed"]["event"]))
+    storedUrls["failed"]["dead"] = list(set(deadUrls + storedUrls["failed"]["dead"]))
+
+    if (numErrors := len(erroredUrls)) > 0:
+        print(f"\nError: Failed to reach {numErrors} Url{'s' if numErrors > 1 else ''}. Please try them again with 'python scrape.py <dataset> <format> -retry'\n")
+    if (numDead := len(deadUrls)) > 0:
         print(f"\nKilled {numDead} urls")
 
-    with open(urlFileName, "wb") as f:
-        f.write(json.dumps(storedUrls))
-
+    urlFile.write_bytes(json.dumps(storedUrls))
 
 def dateFromUrl(url: str) -> str:
     deckDate = url.split("-")
@@ -265,36 +263,36 @@ def dateFromUrl(url: str) -> str:
 
     return f"{year}-{month:02d}-{day:02d}"
 
-def getNewUrls(datasetFile: str, format: str, date: str, killFailures: bool = False) -> list[str]:
+def getNewUrls(datasetFile: Path, format: str, date: str, killFailures: bool = False) -> list[str]:
     """
     Gets each event url from a page with all events from a month that has not yet been scraped
     The date should have the format "yyyy/mm"
     """
     format = format.title()
     listingUrl = f"{config.MTGO_DECKLISTS_LIST_PREFIX}{date}?filter={format}"
-    datasetName = datasetFile.split("/")[-1].split(".")[0]
-    urlFileName = f"{config.DATA_DIR}{datasetName}{config.URLS_FILE_SUFFIX}"
+    datasetName = datasetFile.stem
+    urlFile = config.DATA_DIR / f"{datasetName}{config.URLS_FILE_SUFFIX}"
     foundUrls = []
     newUrls = []
 
-    createUrlFileIfNotExist(urlFileName)
-    with open(urlFileName, "r") as f:
-        storedUrls = json.loads(f.read())
+    if urlFile.is_file():
+        storedUrls = json.loads(urlFile.read_bytes())
+    else:
+        storedUrls = {"completed": [], "failed": {"listing": [], "event": [], "dead": []}}
 
     try:
         driver.get(listingUrl)
-        wait = WebDriverWait(driver, config.DRIVER_TIMEOUT)
+        wait = WebDriverWait(driver, config.SCRAPER_DRIVER_TIMEOUT)
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, "decklists-list")))
     except selenium.common.exceptions.TimeoutException:
         print(f"Error: Unable to access {listingUrl}. Please try them again with 'python scrape.py <dataset> <format> -err'\n")
         storedUrls["failed"]["listing"] = list(set([date] + storedUrls["failed"]["listing"]))
-        with open(urlFileName, "wb") as f:
-            f.write(json.dumps(storedUrls))
+        urlFile.write_bytes(json.dumps(storedUrls))
         return []
     
     content = driver.find_elements(By.PARTIAL_LINK_TEXT, format)
 
-    if len(content) == 0:
+    if not content:
         print(f"Error: No {format} decklists found at {listingUrl}'")
         if killFailures:
             storedUrls["failed"]["dead"] = list(set([date] + storedUrls["failed"]["dead"]))
@@ -302,9 +300,8 @@ def getNewUrls(datasetFile: str, format: str, date: str, killFailures: bool = Fa
                 storedUrls["failed"]["listing"].remove(date)
         else:
             storedUrls["failed"]["listing"] = list(set([date] + storedUrls["failed"]["listing"]))
-        
-        with open(urlFileName, "wb") as f:
-            f.write(json.dumps(storedUrls))
+
+        urlFile.write_bytes(json.dumps(storedUrls))
         return []
 
     for l in content:
@@ -318,12 +315,11 @@ def getNewUrls(datasetFile: str, format: str, date: str, killFailures: bool = Fa
     if date in storedUrls["failed"]["listing"]:
         storedUrls["failed"]["listing"].remove(date)
 
-    with open(urlFileName, "wb") as f:
-            f.write(json.dumps(storedUrls))
+    urlFile.write_bytes(json.dumps(storedUrls))
 
     return newUrls
 
-def scrapeUrlsByMonth(datasetFile: str, format: str, skip: bool, grace: Optional[int] = 7, startDate: Optional[str] = None, endDate: Optional[str] = None) -> None:
+def scrapeUrlsByMonth(datasetFile: Path, format: str, skip: bool, grace: Optional[int] = 7, startDate: Optional[str] = None, endDate: Optional[str] = None) -> None:
     """
     Scrape one or more months of data for one format, and add data to datasetFile
     date inputs should be like 'yyyy/mm'
@@ -352,10 +348,9 @@ def scrapeUrlsByMonth(datasetFile: str, format: str, skip: bool, grace: Optional
     for date in dates:
         scrapeUrls(datasetFile, getNewUrls(datasetFile, format, date))
 
-def retryErroredUrls(dsPath: str, format: str, killFailures: bool = False):
-    urlPath = dsPath.replace(".json", config.URLS_FILE_SUFFIX)
-    with open(urlPath, "r") as f:
-        urls = json.loads(f.read())
+def retryErroredUrls(dsPath: Path, format: str, killFailures: bool = False):
+    urlPath = config.DATA_DIR / f"{dsPath.stem}{config.URLS_FILE_SUFFIX}"
+    urls = json.loads(urlPath.read_bytes())
     
     numFailedEvents = len(urls["failed"]["event"])
     numFailedListings = len(urls["failed"]["listing"])
@@ -365,15 +360,13 @@ def retryErroredUrls(dsPath: str, format: str, killFailures: bool = False):
 
         # Get updated urls after listing retries have occurred
     if numFailedEvents > 0:
-        with open(urlPath, "r") as f:
-            urls = json.loads(f.read())
+        urls = json.loads(urlPath.read_bytes())
     fullUrls = [config.MTGO_DECKLIST_PREFIX + urlEnding for urlEnding in urls["failed"]["event"]]
 
     scrapeUrls(dsPath, fullUrls, killFailures=killFailures)
 
     # Get updated urls after retries have occurred
-    with open(urlPath, "r") as f:
-        urls = json.loads(f.read())
+    urls = json.loads(urlPath.read_bytes())
 
     newNumEvents = len(urls["failed"]["event"])
     newNumListings = len(urls["failed"]["listing"])
@@ -385,15 +378,3 @@ def retryErroredUrls(dsPath: str, format: str, killFailures: bool = False):
     print(f"Number of urls that need to be retried again:")
     print(f"Months: {newNumListings}")
     print(f"Events: {newNumEvents}")
-
-
-def createFileIfNotExist(filePath: str, content: any) -> None:
-    if not path.isfile(filePath):
-        with open(filePath, "wb+") as f:
-            f.write(json.dumps(content))
-
-def createDatasetFileIfNotExist(datasetFile: str) -> None:
-    createFileIfNotExist(datasetFile, [])
-
-def createUrlFileIfNotExist(urlFile: str) -> None:
-    createFileIfNotExist(urlFile, {"completed": [], "failed": {"listing": [], "event": [], "dead": []}})

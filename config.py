@@ -1,14 +1,17 @@
 import pandas as pd
 from datetime import date
+from pathlib import Path
 
 # Daily Aggregates
 AGG_START_DATE = pd.Timestamp("2022-12-01")
 AGG_PLAY_RATE_PATH = "goat/playrates.parquet"
 
 # Data Paths
-DATA_DIR = "Data/"
-CARD_PROPERTIES_PATH = f"{DATA_DIR}card_properties.json"
+DATA_DIR = Path("Data")
+CARD_PROPERTIES_PATH = DATA_DIR / "card_properties.json"
 URLS_FILE_SUFFIX = "_urls.json"
+JSON_EXT = ".json"
+XML_EXT = ".xml"
 
 # Dates
 DEFAULT_MIN_DATE = date(1900, 1, 1)
