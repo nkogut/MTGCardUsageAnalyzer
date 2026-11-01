@@ -8,30 +8,47 @@ You can also use these searches to generate charts that show how card choices ha
 
 Use the included scraper or compiled datasets to see the newest results.
 
+## Setup
+
+```bash
+# Clone the repo
+git clone https://github.com/nkogut/MTGCardUsageAnalyzer.git
+cd MTGCardUsageAnalyzer
+
+# Create and activate a virtual environment
+python -m venv venv
+venv\Scripts\activate # Windows only
+source venv/bin/activate # Mac/Linux only
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
 # Command Line Interface
 
-The Scraper and Card Analyzer functionality is now available via the command line. To learn more, try out the commands below:
-
-## Card Analyzer
-
-Find detailed stats about decks right in the command line. Quickly adjust a wide variety of criteria to refine your searches.
-
-python analyze.py -h
-![terminal output for python analyze.py -h](Demos/analyzeH.png)
-
-## Scraper
-
-Scrape months worth of decks at a time using the scraper CLI. Easily maintain separate databases for different formats and timeframes.
-
-python scrape.py -h
-![terminal output for python scrape.py -h](Demos/scrapeH.png)
+The Scraper and Card Analyzer functionality is available via the command line. To learn more, try out the commands below:
 
 # GUI
 
-## Demo - Deck Search
+```python -m mtgo_decklist_analyzer.gui```
 
-![Example using GUI Deck Search](Demos/mododemo0.gif)
+![sample gui usage - display card frequencies and graph shocklands for a modern deck matching search filters](demos/gui.png)
 
-## Demo - Historical Chart
+## Card Analyzer
 
-![Example using GUI Chart Generation](Demos/mododemo1.gif)
+Find detailed stats about decks right in the command line. \
+Quickly adjust a wide variety of criteria to refine your searches.
+
+```python -m mtgo_decklist_analyzer.analyze -h```
+
+![terminal output for analyzer help](demos/analyzeH.png)
+
+## Scraper
+
+Scrape months worth of decks at a time using the scraper CLI. \
+Easily maintain separate databases for different formats and timeframes.
+
+```python -m mtgo_decklist_analyzer.scrape -h```
+
+![terminal output for scraper help](demos/scrapeH.png)
+

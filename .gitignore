@@ -5,17 +5,18 @@
 .vscode/
 Scripts/
 __pycache__/
-Data/
-Backups/
 
+backups/
+data/
+logs/
+aggregate_data/
+
+*.egg-info/
 *.xml
 *.bat
 *.vbs
 *.json
+*.parquet
 
 noinclude.py
 TODO.txt
-
-
-!Data/sample_modern.json
-!samplePrefs.xml
