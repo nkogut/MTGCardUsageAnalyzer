@@ -21,10 +21,12 @@ DEFAULT_MAX_DATE_STR = "9999/01"
 DATE_FMT_DECK = "%Y-%m-%d"
 DATE_FMT_CLI = "%Y/%m"
 
-# ==== Scraper ====
+# ==== Scryfall ====
 SCRYFALL_BULK_DATA_URL = "https://scryfall.com/docs/api/bulk-data"
 SCRYFALL_IGNORED_SET_TYPES = frozenset(["vanguard", "token", "memorabilia", "alchemy", "minigame"])
 SCRYFALL_IGNORED_LAYOUTS = frozenset(["art_series", "planar", "scheme"])
+SCRYFALL_CATALOG_TIMEOUT = 10
+SCRYFALL_BULK_DATA_TIMEOUT = 30
 
 CARD_TYPE_SEPARATORS = (
     "Creature (", "Land (", "Instant (", "Sorcery (", "Artifact (", "Enchantment (", "Planeswalker (","Other (", 
@@ -33,6 +35,7 @@ CARD_TYPE_SEPARATORS = (
 
 MTGO_DECKLIST_PREFIX = "https://www.mtgo.com/decklist/"
 MTGO_DECKLISTS_LIST_PREFIX = "https://www.mtgo.com/decklists/"
+DECK_START_INDEX = 9
 
 # Default settings
 DRIVER_TIMEOUT = 4

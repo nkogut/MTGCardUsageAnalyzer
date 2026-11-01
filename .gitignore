@@ -5,14 +5,18 @@
 .vscode/
 Scripts/
 __pycache__/
-Data/
+
 Backups/
+Data/
 logs/
+aggregate_data/
+
 
 *.xml
 *.bat
 *.vbs
 *.json
+*.parquet
 
 noinclude.py
 TODO.txt

@@ -1,10 +1,11 @@
-import scraper
 import argparse
 import time
+import logging
 
 from pathlib import Path
 
 from config import DEFAULT_GRACE_DAYS, JSON_EXT
+from scraper import Scraper
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("scrape")
@@ -28,14 +29,17 @@ if __name__ == "__main__":
     args.grace = DEFAULT_GRACE_DAYS if args.grace is None else args.grace
     args.grace = int(args.grace)
 
-    startTime = time.time()
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 
-    with scraper.init_driver() as driver:
+    with Scraper(dataset) as scraper:
         if args.kill:
-            scraper.retryErroredUrls(driver, dataset, args.format, killFailures=True)
+            scraper.retry_backlog_urls(args.format, kill_failures=True)
         elif args.retry:
-            scraper.retryErroredUrls(driver, dataset, args.format, killFailures=False)
+            scraper.retry_backlog_urls(args.format, kill_failures=False)
         else:
-            scraper.scrapeUrlsByMonth(driver, dataset, args.format, args.skip, grace=args.grace, startDate=args.start, endDate=args.end)
-    
-    print(f"Operation completed in {time.time() - startTime} seconds")
+            scraper.process_date_range(args.format, grace=args.grace, start_date=args.start, end_date=args.end)
+# TODO: args.skip

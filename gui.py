@@ -13,15 +13,15 @@ import card_groups
 DEFAULT_DATASET_FILE = "Data/modern.json"
 dataset = DEFAULT_DATASET_FILE
 
-searchParams = {"whitelist": [], "blacklist": [], "player": None, "minDate": date(2000, 1, 1),
-                      "maxDate": date(2100, 1, 1), "searchIn": ["main", "side"],
-                      "eventType": ["league", "scheduled"]}
+search_params = {"whitelist": [], "blacklist": [], "player": None, "min_date": date(2000, 1, 1),
+                      "max_date": date(2100, 1, 1), "search_in": ["main", "side"],
+                      "event_type": ["league", "scheduled"]}
 
-def chooseFile() -> None:
+def choose_file() -> None:
     global dataset
     dataset = askopenfilename()
 
-def parseCommaSeparatedInput(input: str) -> list[str]:
+def parse_comma_separated_input(input: str) -> list[str]:
     if input == "":
         return []
     input = input.title()
@@ -31,172 +31,172 @@ def parseCommaSeparatedInput(input: str) -> list[str]:
     else:
         return input.split(",")
 
-def updateOutput(text: str) -> None:
-    outputTextbox.config(state="normal")
-    outputTextbox.delete(1.0, tk.END)
-    outputTextbox.insert(1.0, text)
-    outputTextbox.config(state="disabled")
+def update_output(text: str) -> None:
+    output_textbox.config(state="normal")
+    output_textbox.delete(1.0, tk.END)
+    output_textbox.insert(1.0, text)
+    output_textbox.config(state="disabled")
 
-def updateSearchParams() -> None:
+def update_search_params() -> None:
     """
-    Update query parameters with current gui state and use ca.getDecks() to get all relevant decks
+    Update query parameters with current gui state and use ca.get_decks() to get all relevant decks
     This is called by the "Analyze Decks", "Show Decks" and "Generate Chart" buttons, which pass it to other functions from CA to format it
     """
     # Set which part of deck to search in
-    if not (searchSideboard.get() + searchMaindeck.get()) % 2 == 0:
-        if searchMaindeck.get() == 0:
-            searchParams["searchIn"] = ["side"]
+    if not (search_sideboard.get() + search_maindeck.get()) % 2 == 0:
+        if search_maindeck.get() == 0:
+            search_params["search_in"] = ["side"]
         else:
-            searchParams["searchIn"] = ["main"]
+            search_params["search_in"] = ["main"]
     else:
-        searchParams["searchIn"] = ["main", "side"]
+        search_params["search_in"] = ["main", "side"]
 
     # Set which types of events to search in
-    if not (searchLeague.get() + searchScheduled.get()) % 2 == 0:
-        if searchLeague.get() == 0:
-            searchParams["eventType"] = ["scheduled"]
+    if not (search_league.get() + search_scheduled.get()) % 2 == 0:
+        if search_league.get() == 0:
+            search_params["event_type"] = ["scheduled"]
         else:
-            searchParams["eventType"] = ["league"]
+            search_params["event_type"] = ["league"]
     else:
-        searchParams["eventType"] = ["league", "scheduled"]
+        search_params["event_type"] = ["league", "scheduled"]
 
     # Set the date range
-    minDate = minDateSelector.get_date()
-    maxDate = maxDateSelector.get_date()
-    if minDate > maxDate:
-        updateOutput("End date is before start date")
+    min_date = min_date_selector.get_date()
+    max_date = max_date_selector.get_date()
+    if min_date > max_date:
+        update_output("End date is before start date")
         return
-    searchParams["minDate"] = minDate
-    searchParams["maxDate"] = maxDate
+    search_params["min_date"] = min_date
+    search_params["max_date"] = max_date
 
     # Set whitelist/blacklist
-    searchParams["whitelist"] = parseCommaSeparatedInput(whitelistTextbox.get(1.0, "end-1c"))
-    searchParams["blacklist"] = parseCommaSeparatedInput(blacklistTextbox.get(1.0, "end-1c"))
+    search_params["whitelist"] = parse_comma_separated_input(whitelist_textbox.get(1.0, "end-1c"))
+    search_params["blacklist"] = parse_comma_separated_input(blacklist_textbox.get(1.0, "end-1c"))
 
     # Set Player
-    playerInput = playerTextbox.get(1.0, "end-1c")
-    if playerInput == "":
-        searchParams["player"] = None
+    player_input = player_textbox.get(1.0, "end-1c")
+    if player_input == "":
+        search_params["player"] = None
     else:
-        searchParams["player"] = playerInput
+        search_params["player"] = player_input
 
-def generateChart() -> None:
-    updateSearchParams()
-    inputChart = parseCommaSeparatedInput(chartTextbox.get(1.0, "end-1c"))
-    print(searchParams)
-    if not inputChart:
+def generate_chart() -> None:
+    update_search_params()
+    input_chart = parse_comma_separated_input(chart_textbox.get(1.0, "end-1c"))
+    print(search_params)
+    if not input_chart:
         # Use dropdown
-        cards = card_groups.CARD_GROUP_DICT[chartDropdownValue.get()]
+        cards = card_groups.CARD_GROUP_DICT[chart_dropdown_value.get()]
     else:
         # use text input
-        cards = inputChart
-    dv.createLineChart(consideredDecks=ca.getDecks(dataset, *searchParams.values()),
+        cards = input_chart
+    dv.create_line_chart(considered_decks=ca.get_decks(dataset, *search_params.values()),
                         cards=cards)
 
 
-def queryDecks() -> list[dict[str, Union[str, dict[str, int]]]]:
-    updateSearchParams()
-    return ca.getDecks(dataset, *searchParams.values())
+def query_decks() -> list[dict[str, Union[str, dict[str, int]]]]:
+    update_search_params()
+    return ca.get_decks(dataset, *search_params.values())
 
 # Window setup
 root = tk.Tk()
 root.title("MTG Card Usage Analyzer")
 
 # Dataset selection
-filePickerButton = ttk.Button(root, text="Change Dataset", command=chooseFile)
-analyzeDecksButton = ttk.Button(root, text="Analyze Decks", command=lambda: updateOutput(ca.getCardPrevalence(queryDecks())))
-showDecksButton = ttk.Button(root, text="Show Decks", command=lambda: updateOutput(ca.displayDecks(queryDecks())))
+file_picker_button = ttk.Button(root, text="Change Dataset", command=choose_file)
+analyze_decks_button = ttk.Button(root, text="Analyze Decks", command=lambda: update_output(ca.get_card_prevalence(query_decks())))
+show_decks_button = ttk.Button(root, text="Show Decks", command=lambda: update_output(ca.display_decks(query_decks())))
 
 # Maindeck/Sideboard selection
-searchMaindeck = tk.IntVar(value=1)
-searchSideboard = tk.IntVar(value=1)
-searchInMenu = tk.Frame(root)
-searchInMenuLabel = tk.Label(searchInMenu, text="Search in:")
-searchInMaindeckCheckbox = ttk.Checkbutton(searchInMenu, text="Maindeck", variable=searchMaindeck)
-searchInSideboardCheckbox = ttk.Checkbutton(searchInMenu, text="Sideboard", variable=searchSideboard)
+search_maindeck = tk.Int_var(value=1)
+search_sideboard = tk.Int_var(value=1)
+search_in_menu = tk.Frame(root)
+search_in_menu_label = tk.Label(search_in_menu, text="Search in:")
+search_in_maindeck_checkbox = ttk.Checkbutton(search_in_menu, text="Maindeck", variable=search_maindeck)
+search_in_sideboard_checkbox = ttk.Checkbutton(search_in_menu, text="Sideboard", variable=search_sideboard)
 
-searchInMenuLabel.grid(row=0, columnspan=2)
-searchInMaindeckCheckbox.grid(row=1, column=0)
-searchInSideboardCheckbox.grid(row=1, column=1)
+search_in_menu_label.grid(row=0, columnspan=2)
+search_in_maindeck_checkbox.grid(row=1, column=0)
+search_in_sideboard_checkbox.grid(row=1, column=1)
 
 
 #Event type selection
-searchLeague = tk.IntVar(value=1)
-searchScheduled = tk.IntVar(value=1)
-eventTypeMenu = tk.Frame(root)
-eventTypeMenuLabel = tk.Label(eventTypeMenu, text="Event types:")
-leagueCheckbox = ttk.Checkbutton(eventTypeMenu, text="Leagues", variable=searchLeague)
-scheduledCheckbox = ttk.Checkbutton(eventTypeMenu, text="Scheduled", variable=searchScheduled)
+search_league = tk.Int_var(value=1)
+search_scheduled = tk.Int_var(value=1)
+event_type_menu = tk.Frame(root)
+event_type_menu_label = tk.Label(event_type_menu, text="Event types:")
+league_checkbox = ttk.Checkbutton(event_type_menu, text="Leagues", variable=search_league)
+scheduled_checkbox = ttk.Checkbutton(event_type_menu, text="Scheduled", variable=search_scheduled)
 
-eventTypeMenuLabel.grid(row=0, columnspan=2)
-leagueCheckbox.grid(row=1, column=0)
-scheduledCheckbox.grid(row=1, column=1)
+event_type_menu_label.grid(row=0, columnspan=2)
+league_checkbox.grid(row=1, column=0)
+scheduled_checkbox.grid(row=1, column=1)
 
 
 #Date selection
-dateMenu = tk.Frame(root)
-defaultStartDate = date.today() - relativedelta(months=6)
-minDateLabel = tk.Label(dateMenu, text="Start date:")
-maxDateLabel = tk.Label(dateMenu, text="End date:")
-minDateSelector = DateEntry(dateMenu, year=defaultStartDate.year, month=defaultStartDate.month, day=1)
-maxDateSelector = DateEntry(dateMenu)
+date_menu = tk.Frame(root)
+default_start_date = date.today() - relativedelta(months=6)
+min_date_label = tk.Label(date_menu, text="Start date:")
+max_date_label = tk.Label(date_menu, text="End date:")
+min_date_selector = Date_entry(date_menu, year=default_start_date.year, month=default_start_date.month, day=1)
+max_date_selector = Date_entry(date_menu)
 
-minDateLabel.grid(row=0, column=0)
-maxDateLabel.grid(row=0, column=1)
-minDateSelector.grid(row=1, column=0)
-maxDateSelector.grid(row=1, column=1)
+min_date_label.grid(row=0, column=0)
+max_date_label.grid(row=0, column=1)
+min_date_selector.grid(row=1, column=0)
+max_date_selector.grid(row=1, column=1)
 
 
 # Whitelist/Blacklist selection
-cardListInputMenu = tk.Frame(root)
-whitelistLabel = tk.Label(cardListInputMenu, text="Decks including:")
-blacklistLabel = tk.Label(cardListInputMenu, text="Excluding decks with:")
-playerLabel = tk.Label(cardListInputMenu, text="Player (up to 1)")
-cardListInputInstructionLabel = tk.Label(cardListInputMenu, text="Enter as 'card a,card b,card c'")
-whitelistTextbox = tk.Text(cardListInputMenu, height=1, width=25)
-blacklistTextbox = tk.Text(cardListInputMenu, height=1, width=25)
-playerTextbox = tk.Text(cardListInputMenu, height=1, width=15)
+card_list_input_menu = tk.Frame(root)
+whitelist_label = tk.Label(card_list_input_menu, text="Decks including:")
+blacklist_label = tk.Label(card_list_input_menu, text="Excluding decks with:")
+player_label = tk.Label(card_list_input_menu, text="Player (up to 1)")
+card_list_input_instruction_label = tk.Label(card_list_input_menu, text="Enter as 'card a,card b,card c'")
+whitelist_textbox = tk.Text(card_list_input_menu, height=1, width=25)
+blacklist_textbox = tk.Text(card_list_input_menu, height=1, width=25)
+player_textbox = tk.Text(card_list_input_menu, height=1, width=15)
 
-cardListInputInstructionLabel.grid(row=0, column=1)
-whitelistLabel.grid(row=1, column=0)
-whitelistTextbox.grid(row=1, column=1)
-blacklistLabel.grid(row=2, column=0)
-blacklistTextbox.grid(row=2, column=1)
-playerLabel.grid(row=3, column=0)
-playerTextbox.grid(row=3, column=1)
+card_list_input_instruction_label.grid(row=0, column=1)
+whitelist_label.grid(row=1, column=0)
+whitelist_textbox.grid(row=1, column=1)
+blacklist_label.grid(row=2, column=0)
+blacklist_textbox.grid(row=2, column=1)
+player_label.grid(row=3, column=0)
+player_textbox.grid(row=3, column=1)
 
 
 # Chart selection
-chartMenu = tk.Frame(root)
-generateChartButton = ttk.Button(chartMenu, text="Generate Historical Graph", command=generateChart)
-customChartLabel = tk.Label(chartMenu, text="Optional - Graph the prevalence of these cards:")
-presetChartLabel = tk.Label(chartMenu, text="Or choose a preset group")
-chartDropdownValue = tk.StringVar()
-chartDropdownValue.set(list(card_groups.CARD_GROUP_DICT.keys())[0])
-chartDropdown = tk.OptionMenu(chartMenu, chartDropdownValue, *card_groups.CARD_GROUP_DICT.keys())
-chartTextbox = tk.Text(chartMenu, height=1, width=25)
+chart_menu = tk.Frame(root)
+generate_chart_button = ttk.Button(chart_menu, text="Generate Historical Graph", command=generate_chart)
+custom_chart_label = tk.Label(chart_menu, text="Optional - Graph the prevalence of these cards:")
+preset_chart_label = tk.Label(chart_menu, text="Or choose a preset group")
+chart_dropdown_value = tk.String_var()
+chart_dropdown_value.set(list(card_groups.CARD_GROUP_DICT.keys())[0])
+chart_dropdown = tk.Option_menu(chart_menu, chart_dropdown_value, *card_groups.CARD_GROUP_DICT.keys())
+chart_textbox = tk.Text(chart_menu, height=1, width=25)
 
-customChartLabel.grid(row=0, column=0)
-chartTextbox.grid(row=0, column=1)
-generateChartButton.grid(row=0, column=2)
-presetChartLabel.grid(row=1, column=0)
-chartDropdown.grid(row=1, column=1)
+custom_chart_label.grid(row=0, column=0)
+chart_textbox.grid(row=0, column=1)
+generate_chart_button.grid(row=0, column=2)
+preset_chart_label.grid(row=1, column=0)
+chart_dropdown.grid(row=1, column=1)
 
 
 # Output
-outputTextbox = scrolledtext.ScrolledText(root, state="disabled", width=160, height=30, wrap=tk.WORD)
+output_textbox = scrolledtext.Scrolled_text(root, state="disabled", width=160, height=30, wrap=tk.WORD)
 
 
 # Populate window
-filePickerButton.grid(row=0, column=0)
-dateMenu.grid(row=0, column=1)
-searchInMenu.grid(row=1, column=0)
-eventTypeMenu.grid(row=1, column=1)
-cardListInputMenu.grid(row=2, columnspan=2)
-analyzeDecksButton.grid(row=3, column=0)
-showDecksButton.grid(row=3, column=1)
-chartMenu.grid(row=4, columnspan=2)
-outputTextbox.grid(row=6, columnspan=2)
+file_picker_button.grid(row=0, column=0)
+date_menu.grid(row=0, column=1)
+search_in_menu.grid(row=1, column=0)
+event_type_menu.grid(row=1, column=1)
+card_list_input_menu.grid(row=2, columnspan=2)
+analyze_decks_button.grid(row=3, column=0)
+show_decks_button.grid(row=3, column=1)
+chart_menu.grid(row=4, columnspan=2)
+output_textbox.grid(row=6, columnspan=2)
 
 
 # Draw window
