@@ -70,3 +70,17 @@ class CardMetadata:
 
         SETTINGS.paths.card_properties.write_bytes(json.dumps(out))
         logger.info("Successfully updated card properties cache")
+
+    def resolve_card_name(self, partial_name: str) -> str:
+        """Find the closest 'autocomplete' match for a card name."""
+        partial = partial_name.lower()
+        if partial in self.data:
+            logger.debug(f"Resolved {partial_name} without changes")
+            return partial
+
+        if matches := [c for c in self.data if partial in c]:
+            match = min(matches, key=len)
+            logger.debug(f"Resolved {partial_name} to {match}")
+            return match
+
+        return partial_name

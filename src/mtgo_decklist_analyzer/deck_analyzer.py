@@ -32,8 +32,8 @@ class DeckAnalyzer:
                 "event_types": list(SETTINGS.analyzer.default_event_types)
             }
 
-        whitelist = [v.lower() for v in params["whitelist"]]
-        blacklist = [v.lower() for v in params["blacklist"]]
+        whitelist = {v.lower() for v in params["whitelist"]}
+        blacklist = {v.lower() for v in params["blacklist"]}
         search_in = params["search_in"]
         event_types = [v.lower() for v in params["event_types"]]
 
@@ -56,7 +56,7 @@ class DeckAnalyzer:
             if event not in matchable_events:
                 continue
 
-            if self.__passes_whitelist_blacklist(search_in, decklist, whitelist, blacklist):
+            if self._passes_whitelist_blacklist(search_in, decklist, whitelist, blacklist):
                found_decks.append(decklist)
 
         return found_decks
@@ -64,7 +64,7 @@ class DeckAnalyzer:
     def generate_decklist_report(self, decks: DeckEntries | None) -> str:
         """Format a list of decklists into a pretty-printable format with some additional metadata per card."""
         if not decks:
-            return ""
+            return "No decks in sample"
 
         output = ""
         for deck in decks:
@@ -155,27 +155,20 @@ class DeckAnalyzer:
 
         return output
 
-    def __passes_whitelist_blacklist(
+    def _passes_whitelist_blacklist(
             self,
             search_in: list[str],
             decklist: DeckEntry,
-            whitelist: list[str],
-            blacklist: list[str]
+            whitelist: set[str],
+            blacklist: set[str]
         ) -> bool:
-        """Return whether a card meets all whitelist and blacklist criteria or not."""
+        """Return whether a card meets all whitelist and blacklist criteria."""
         if not whitelist and not blacklist:
             return True
 
-        left_to_match = len(whitelist)
-        cards = "@".join(["@".join(decklist[location].keys()) for location in search_in])
+        cards = set().union(*(decklist[loc].keys() for loc in search_in if loc in decklist))
 
-        if any(b in cards for b in blacklist):
+        if blacklist and not blacklist.isdisjoint(cards):
             return False
 
-        for w in whitelist:
-            if w in cards:
-                if left_to_match <= 1:
-                    return True
-                left_to_match -= 1
-
-        return False
+        return not whitelist or whitelist.issubset(cards)

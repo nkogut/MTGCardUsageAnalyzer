@@ -1,5 +1,4 @@
 [lands]
-
 shocklands = [
     "Hallowed Fountain", "Godless Shrine", "Sacred Foundry", "Temple Garden", "Watery Grave", "Steam Vents",
     "Breeding Pool", "Blood Crypt", "Overgrown Tomb", "Stomping Ground"
@@ -44,7 +43,7 @@ graveyard_hate = [
 [cycles]
 mh2_elementals = ["Solitude", "Subtlety", "Grief", "Fury", "Endurance"]
 
-[metagames]
+[metas]
 # Representative cards for decks in a particular metagame
 
 [misc]

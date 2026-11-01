@@ -1,4 +1,5 @@
 import tkinter as tk
+import tkinter.font as tkfont
 from datetime import date
 from pathlib import Path
 from tkinter import scrolledtext, ttk
@@ -13,7 +14,7 @@ from mtgo_decklist_analyzer.data_visualization import create_line_chart
 from mtgo_decklist_analyzer.deck_analyzer import DeckAnalyzer
 from mtgo_decklist_analyzer.types import DeckEntries, SearchParams
 
-DEFAULT_DATASET_FILE = Path("Data/modern.json")
+DEFAULT_DATASET_FILE = Path("data/modern.json")
 
 
 class AnalyzerGUI:
@@ -24,7 +25,8 @@ class AnalyzerGUI:
         self.root.title("MTG Card Usage Analyzer")
 
         self.dataset_path = DEFAULT_DATASET_FILE
-        self.analyzer = DeckAnalyzer(dataset_path=self.dataset_path, card_metadata=CardMetadata())
+        self.card_meta = CardMetadata()
+        self.analyzer = DeckAnalyzer(dataset_path=self.dataset_path, card_metadata=self.card_meta)
 
         self.search_params: SearchParams = {
             "whitelist": [],
@@ -103,17 +105,21 @@ class AnalyzerGUI:
         self.player_label = tk.Label(self.card_list_input_menu, text="Player (up to 1)")
         self.card_list_input_instruction_label = tk.Label(self.card_list_input_menu, text="Enter as 'card a;card b'")
 
-        self.whitelist_textbox = tk.Text(self.card_list_input_menu, height=1, width=25)
-        self.blacklist_textbox = tk.Text(self.card_list_input_menu, height=1, width=25)
-        self.player_textbox = tk.Text(self.card_list_input_menu, height=1, width=15)
+        self.whitelist_entry = ttk.Entry(self.card_list_input_menu, width=50)
+        self.blacklist_entry = ttk.Entry(self.card_list_input_menu, width=50)
+        self.player_entry = ttk.Entry(self.card_list_input_menu, width=25)
+
+        # Bind tabbing/clicking away to trigger name resolution
+        self.whitelist_entry.bind("<FocusOut>", lambda _: self._format_entry(self.whitelist_entry))
+        self.blacklist_entry.bind("<FocusOut>", lambda _: self._format_entry(self.blacklist_entry))
 
         self.card_list_input_instruction_label.grid(row=0, column=1)
         self.whitelist_label.grid(row=1, column=0)
-        self.whitelist_textbox.grid(row=1, column=1)
+        self.whitelist_entry.grid(row=1, column=1)
         self.blacklist_label.grid(row=2, column=0)
-        self.blacklist_textbox.grid(row=2, column=1)
+        self.blacklist_entry.grid(row=2, column=1)
         self.player_label.grid(row=3, column=0)
-        self.player_textbox.grid(row=3, column=1)
+        self.player_entry.grid(row=3, column=1)
 
         # Chart selection
         self.chart_menu = tk.Frame(self.root)
@@ -121,15 +127,30 @@ class AnalyzerGUI:
         self.custom_chart_label = tk.Label(self.chart_menu, text="Optional - Graph the prevalence of these cards:")
         self.preset_chart_label = tk.Label(self.chart_menu, text="Or choose a preset group")
 
+        max_cg_len = max((len(f) for f in CARD_GROUPS), default=0)
+        self.card_groups = {
+            f"{fmt:\u00A0<{max_cg_len + 1}} | {group}": cards
+            for fmt, section in CARD_GROUPS.items()
+            for group, cards in section.items()
+        }
         self.chart_dropdown_value = tk.StringVar()
-        group_keys = list(CARD_GROUPS.keys())
-        self.chart_dropdown_value.set(group_keys[0])
-        self.chart_dropdown = tk.OptionMenu(self.chart_menu, self.chart_dropdown_value, *group_keys)
+        group_keys = list(self.card_groups.keys())
 
-        self.chart_textbox = tk.Text(self.chart_menu, height=1, width=25)
+        if group_keys:
+            self.chart_dropdown_value.set(group_keys[0])
+            self.chart_dropdown = ttk.Combobox(
+                self.chart_menu,
+                textvariable=self.chart_dropdown_value,
+                values=group_keys,
+                state="readonly",
+                width=max(len(k) for k in group_keys) + 1
+            )
+
+        self.chart_entry = ttk.Entry(self.chart_menu, width=50)
+        self.chart_entry.bind("<FocusOut>", lambda e: self._format_entry(self.chart_entry))
 
         self.custom_chart_label.grid(row=0, column=0)
-        self.chart_textbox.grid(row=0, column=1)
+        self.chart_entry.grid(row=0, column=1)
         self.generate_chart_button.grid(row=0, column=2)
         self.preset_chart_label.grid(row=1, column=0)
         self.chart_dropdown.grid(row=1, column=1)
@@ -152,13 +173,27 @@ class AnalyzerGUI:
         """Prompt user for a new dataset file and re-initialize the deck analyzer object."""
         if new_file := askopenfilename():
             self.dataset_path = Path(new_file)
-            self.analyzer = DeckAnalyzer(dataset_path=self.dataset_path, card_metadata=CardMetadata())
+            self.analyzer = DeckAnalyzer(dataset_path=self.dataset_path, card_metadata=self.card_meta)
+
+    def _format_entry(self, entry_widget: ttk.Entry) -> None:
+        """Resolve card names in the UI text box when the user tabs out."""
+        raw_text = entry_widget.get().strip()
+        if not raw_text:
+            return
+
+        raw_names = [c.strip() for c in raw_text.split(";") if c.strip()]
+        resolved = [self.card_meta.resolve_card_name(c) for c in raw_names]
+
+        entry_widget.delete(0, tk.END)
+        entry_widget.insert(0, "; ".join(resolved))
 
     def _parse_card_name_list(self, text: str) -> list[str]:
-        """Parse and normalize semicolon-separated card names."""
+        """Parse, normalize, and resolve semicolon-separated card names."""
         if not text:
             return []
-        return [t.strip().title() for t in text.split(";")]
+
+        raw_names = [t.strip() for t in text.split(";") if t.strip()]
+        return [self.card_meta.resolve_card_name(c) for c in raw_names]
 
     def _update_output(self, text: str) -> None:
         """Overwrite the output textbox with new text."""
@@ -167,8 +202,8 @@ class AnalyzerGUI:
         self.output_textbox.insert(1.0, text)
         self.output_textbox.config(state="disabled")
 
-    def _update_search_params(self) -> None:
-        """Update query parameters with the current state."""
+    def _update_search_params(self) -> bool:
+        """Update query parameters with the current state. Return success status."""
         search_in = []
         if self.search_maindeck_var.get():
             search_in.append("main")
@@ -187,39 +222,49 @@ class AnalyzerGUI:
         max_date = self.max_date_selector.get_date()
         if min_date > max_date:
             self._update_output("End date is before start date")
-            return
+            return False
 
         self.search_params["min_date"] = min_date
         self.search_params["max_date"] = max_date
 
-        self.search_params["whitelist"] = self._parse_card_name_list(self.whitelist_textbox.get(1.0, "end-1c"))
-        self.search_params["blacklist"] = self._parse_card_name_list(self.blacklist_textbox.get(1.0, "end-1c"))
+        self.search_params["whitelist"] = self._parse_card_name_list(self.whitelist_entry.get())
+        self.search_params["blacklist"] = self._parse_card_name_list(self.blacklist_entry.get())
 
-        player_input = self.player_textbox.get(1.0, "end-1c").strip()
+        player_input = self.player_entry.get().strip()
         self.search_params["player"] = player_input if player_input else None
+        return True
 
-    def _query_decks(self) -> DeckEntries:
+    def _query_decks(self) -> DeckEntries | None:
         """Fetch decks from the analyzer matching current GUI parameters."""
-        self._update_search_params()
-        return self.analyzer.query_decks(self.search_params)
+        if self._update_search_params():
+            return self.analyzer.query_decks(self.search_params)
+        return None
 
     def _analyze_decks(self) -> None:
         """Generate and display a card frequency report."""
-        self._update_output(self.analyzer.generate_card_frequency_report(self._query_decks()))
+        if (decks := self._query_decks()) is not None:
+            self._update_output(self.analyzer.generate_card_frequency_report(decks))
 
     def _show_decks(self) -> None:
         """Generate and display a decklist report."""
-        self._update_output(self.analyzer.generate_decklist_report(self._query_decks()))
+        if (decks := self._query_decks()) is not None:
+            self._update_output(self.analyzer.generate_decklist_report(decks))
 
     def _generate_chart(self) -> None:
         """Generate a historical prevalence graph based on selected cards."""
-        self._update_search_params()
-        input_chart = self._parse_card_name_list(self.chart_textbox.get(1.0, "end-1c"))
-        cards = input_chart if input_chart else CARD_GROUPS[self.chart_dropdown_value.get()]
+        if (decks := self._query_decks()) is not None:
+            input_chart = self._parse_card_name_list(self.chart_entry.get())
+            cards = input_chart if input_chart else self.card_groups[self.chart_dropdown_value.get()]
+            create_line_chart(considered_decks=decks, cards=cards)
 
-        create_line_chart(considered_decks=self._query_decks(), cards=cards)
 
 if __name__ == "__main__":
     root_window = tk.Tk()
+
+    # Use monospace font universally
+    for font_name in tkfont.names():
+        tkfont.nametofont(font_name).configure(family="Consolas", size=10)
+    root_window.option_add("*TCombobox*Listbox.font", "Consolas 10")
+
     app = AnalyzerGUI(root_window)
     root_window.mainloop()
