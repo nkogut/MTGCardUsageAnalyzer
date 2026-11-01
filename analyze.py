@@ -1,19 +1,18 @@
 import argparse
 import xml.etree.ElementTree as ET
 import ast
-import string
-import card_analyzer as ca
-
 from datetime import datetime
 from pathlib import Path
 
 import config
+from card_metadata import CardMetadata
+from deck_analyzer import DeckAnalyzer
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("analyze")
     
-    # XML args
+    # XML-related args
     parser.add_argument("-prefs", "-p", nargs="?", help="Optional XML file containing default values in addition to given args")
     parser.add_argument("-save", nargs="?", help="Save the preferences from this search to an XML file with the given name")
 
@@ -40,11 +39,11 @@ if __name__ == "__main__":
     if (prefs := args["prefs"]):
         prefs_path = Path(prefs).with_suffix(config.XML_EXT)
         try:
-            tree = ET.parse(prefs)
+            tree = ET.parse(prefs_path)
             root = tree.getroot()
             for child in root:
                 # Input overwrites XML
-                if args[child.tag] == None and child.text != "None": 
+                if args.get(child.tag) is None and child.text != "None": 
                     value = child.text
                     if "[" in value:
                         value = ast.literal_eval(child.text)
@@ -70,69 +69,64 @@ if __name__ == "__main__":
             root.append(child)
 
         xml = ET.tostring(root, encoding="unicode")
-
         save_path.write_text(xml)
         print(f"Preferences saved to {save_path}")
 
-    # Check that mandatory values for getDecks were included either as input or in XML
-    # First check that no operations that happen separately from these required args are enabled. In that case these are not actually required
-
+    # Check that mandatory values for DeckAnalyzer were included either as input or in XML
     if not args["fprops"] and not args["save"]:
         missing = []
-        requiredArgs = ["dataset"]
-        for arg in requiredArgs:
-            if args[arg] == None:
+        required_args = ["dataset"]
+        for arg in required_args:
+            if args.get(arg) is None:
                 missing.append(arg)
                 print(f"Error: no value specified for {arg}.")
-        if len(missing) > 0:
+        if missing:
             quit()
 
-
-    # Format values to pass to CA:
-
-    # Dataset
+    # Dataset resolution
     dataset = None
-    if args["dataset"]:
+    if args.get("dataset"):
         dataset = Path(args["dataset"])
-        
         if dataset.suffix != config.JSON_EXT:
             dataset = dataset.with_suffix(config.JSON_EXT)
         
-        if args["dsPath"]:
+        if args.get("dsPath"):
             dataset = Path(args["dsPath"]) / dataset
 
-    # Dates
-    args["start"] = args["start"] or config.DEFAULT_MIN_DATE_STR
-    args["end"] = args["end"] or config.DEFAULT_MIN_DATE_STR
+    # Date resolution
+    args["start"] = args.get("start") or config.DEFAULT_MIN_DATE_STR
+    args["end"] = args.get("end") or config.DEFAULT_MAX_DATE_STR
 
     args["start"] = datetime.strptime(args["start"], config.DATE_FMT_CLI).date()
     args["end"] = datetime.strptime(args["end"], config.DATE_FMT_CLI).date()
 
     # Deck / Event
-    searchIn = []
-    if args["main"]:
-        searchIn.append("main")
-    if args["side"]:
-        searchIn.append("side")
+    search_in = []
+    if args.get("main"):
+        search_in.append("main")
+    if args.get("side"):
+        search_in.append("side")
 
-    searchIn = searchIn or None
-
-    if args["fprops"]:
-        ca.loadCardProperties(True)
-
-    if dataset != None:
-        decks = ca.getDecks(
-                        datasetPath=dataset,
-                        whitelist=args["whitelist"],
-                        blacklist=args["blacklist"],
-                        player=args["player"],
-                        minDate=args["start"],
-                        maxDate=args["end"],
-                        searchIn=searchIn,
-                        eventType=args["event"]
-                    )
+    search_in = search_in or None
+    force_update_props = bool(args.get("fprops"))
     
-        if args["lists"]:
-            print(ca.displayDecks(decks))
+    if force_update_props or dataset is not None:
+        card_metadata = CardMetadata(force_update=force_update_props)
+
+    if dataset is not None:
+        analyzer = DeckAnalyzer(dataset_path=dataset, card_metadata=card_metadata)
+        
+        decks = analyzer.query_decks(
+            whitelist=args.get("whitelist"),
+            blacklist=args.get("blacklist"),
+            player=args.get("player"),
+            min_date=args["start"],
+            max_date=args["end"],
+            search_in=search_in,
+            event_types=args.get("event")
+        )
+    
+        if args.get("lists"):
+            print(analyzer.generate_decklist_report(decks))
         else:
-            print(ca.getCardPrevalence(decks, args["type"]))   
+            print(analyzer.generate_card_frequency_report(decks, args.get("type")))

@@ -6,7 +6,7 @@ from tkcalendar import DateEntry
 from datetime import date
 from dateutil.relativedelta import relativedelta
 from typing import Union
-import card_analyzer as ca
+import deck_analyzer as ca
 import data_visualization as dv
 import card_groups
 
@@ -39,7 +39,7 @@ def update_output(text: str) -> None:
 
 def update_search_params() -> None:
     """
-    Update query parameters with current gui state and use ca.get_decks() to get all relevant decks
+    Update query parameters with current gui state and use ca.query_decks() to get all relevant decks
     This is called by the "Analyze Decks", "Show Decks" and "Generate Chart" buttons, which pass it to other functions from CA to format it
     """
     # Set which part of deck to search in
@@ -90,13 +90,13 @@ def generate_chart() -> None:
     else:
         # use text input
         cards = input_chart
-    dv.create_line_chart(considered_decks=ca.get_decks(dataset, *search_params.values()),
+    dv.create_line_chart(considered_decks=ca.query_decks(dataset, *search_params.values()),
                         cards=cards)
 
 
 def query_decks() -> list[dict[str, Union[str, dict[str, int]]]]:
     update_search_params()
-    return ca.get_decks(dataset, *search_params.values())
+    return ca.query_decks(dataset, *search_params.values())
 
 # Window setup
 root = tk.Tk()
@@ -104,8 +104,8 @@ root.title("MTG Card Usage Analyzer")
 
 # Dataset selection
 file_picker_button = ttk.Button(root, text="Change Dataset", command=choose_file)
-analyze_decks_button = ttk.Button(root, text="Analyze Decks", command=lambda: update_output(ca.get_card_prevalence(query_decks())))
-show_decks_button = ttk.Button(root, text="Show Decks", command=lambda: update_output(ca.display_decks(query_decks())))
+analyze_decks_button = ttk.Button(root, text="Analyze Decks", command=lambda: update_output(ca.generate_card_frequency_report(query_decks())))
+show_decks_button = ttk.Button(root, text="Show Decks", command=lambda: update_output(ca.generate_decklist_report(query_decks())))
 
 # Maindeck/Sideboard selection
 search_maindeck = tk.Int_var(value=1)

@@ -6,7 +6,7 @@ import numpy as np
 from datetime import *
 from typing import Union, Optional
 import card_groups
-import card_analyzer as ca
+import deck_analyzer as ca
 import utils
 
 def get_num_decks_by_month(considered_decks: ca.DATASET_CHUNK_TYPE,
@@ -89,4 +89,4 @@ def create_line_chart(considered_decks: ca.DATASET_CHUNK_TYPE,
 if __name__ == "__main__":
     # sample chart
     create_line_chart(cards=card_groups.MODERN_ARTIFACT_HATE,
-                      considered_decks=ca.get_decks(dataset_path="Data/modern.json"))
+                      considered_decks=ca.query_decks(dataset_path="Data/modern.json"))
