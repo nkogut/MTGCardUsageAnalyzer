@@ -1,17 +1,19 @@
-import selenium.common.exceptions
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.options import Options
+import logging
+from collections import Counter, defaultdict
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Self, cast
+
 import orjson as json
 import pandas as pd
-from datetime import *
-from typing import Optional
+import selenium.common.exceptions
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.remote.webdriver import WebDriver
+from selenium.webdriver.support import expected_conditions as ec
+from selenium.webdriver.support.ui import WebDriverWait
+from seleniumbase import Driver
 from unidecode import unidecode
-from collections import defaultdict, Counter
-from pathlib import Path
-import logging
 
 import config
 import utils
@@ -19,37 +21,47 @@ import utils
 logger = logging.getLogger(__name__)
 
 class Scraper:
-    """
-    A context manager for scraping, parsing, and storing MTGO decklists.
+    """A context manager for scraping, parsing, and storing MTGO decklists.
 
-    This class fetches MTGO tournament results with a headless Selenium driver 
+    This class fetches MTGO tournament results with a headless Selenium driver
     and aggregates daily metagame trends.
     """
 
-    def __init__(self, dataset_path: Path):
+    def __init__(self, dataset_path: Path) -> None:
         self.dataset_path = dataset_path
         self.url_file = config.DATA_DIR / f"{dataset_path.stem}{config.URLS_FILE_SUFFIX}"
-        self.driver = None
+        self.driver: WebDriver = cast(WebDriver, None)
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
+        """Start the scraper's WebDriver session."""
         logger.info("Starting scraper")
+
         chrome_options = Options()
-        chrome_options.page_load_strategy = 'eager'
+        chrome_options.page_load_strategy = "eager"
         chrome_options.add_argument("--headless=new")
         chrome_options.add_argument("--window-size=1920,1080")
         chrome_options.add_argument("--log-level=3")
         chrome_options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
-        
+
         try:
-            self.driver = webdriver.Chrome(options=chrome_options)
+            # Initialize using SeleniumBase's Driver, passing in your explicit options
+            self.driver = Driver(
+                headless2=True,
+                page_load_strategy="eager",
+                block_images=True,
+                window_size="1920,1080",
+                chromium_arg="--log-level=3"
+            )
+
             return self
         except selenium.common.exceptions.WebDriverException as e:
             logger.error("Issue with ChromeDriver, cannot create Selenium Session")
             raise e
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, _exc_type, _exc_val, _exc_tb) -> None:  # noqa: ANN001
+        """Close the WebDriver."""
         logger.info("Closing scraper")
         if self.driver:
             self.driver.quit()
@@ -73,14 +85,14 @@ class Scraper:
             url_ending = url.replace(config.MTGO_DECKLIST_PREFIX, "")
             status, content = self._fetch_decklist_elements(url, kill_failures)
             visited_urls[status].append(url_ending)
-            
+
             if status != "completed":
                 continue
 
             for decklist in content:
                 deck_dict, parsed_cards = self._parse_deck(decklist.text, url_ending)
                 decks.append(deck_dict)
-                
+
                 timestamp = pd.to_datetime(deck_dict["date"])
                 if timestamp >= config.AGG_START_DATE:
                     for card, quantity in parsed_cards.items():
@@ -99,7 +111,7 @@ class Scraper:
         try:
             self.driver.get(listing_url)
             WebDriverWait(self.driver, config.DRIVER_TIMEOUT).until(
-                EC.presence_of_element_located((By.CLASS_NAME, "decklists-list"))
+                ec.presence_of_element_located((By.CLASS_NAME, "decklists-list"))
             )
         except selenium.common.exceptions.TimeoutException:
             logger.error(f"Unable to access {listing_url}. Please try again with '-retry'")
@@ -107,7 +119,7 @@ class Scraper:
                 stored_urls["failed"]["listing"].append(date_str)
             self._save_urls(stored_urls)
             return []
-        
+
         content = self.driver.find_elements(By.PARTIAL_LINK_TEXT, format_name)
 
         if not content:
@@ -117,19 +129,18 @@ class Scraper:
                     stored_urls["failed"]["discarded"].append(date_str)
                 if date_str in stored_urls["failed"]["listing"]:
                     stored_urls["failed"]["listing"].remove(date_str)
-            else:
-                if date_str not in stored_urls["failed"]["listing"]:
-                    stored_urls["failed"]["listing"].append(date_str)
+            elif date_str not in stored_urls["failed"]["listing"]:
+                stored_urls["failed"]["listing"].append(date_str)
 
             self._save_urls(stored_urls)
             return []
 
         # Filter out urls that are already marked as not being retry candidates (completed or discarded)
-        found_urls = [elem.get_attribute("href") for elem in content]
+        found_urls = [href for elem in content if (href := elem.get_attribute("href")) is not None]
         ignore_list = set(stored_urls["completed"] + stored_urls["failed"]["discarded"])
-        
+
         new_urls = [
-            url for url in found_urls 
+            url for url in found_urls
             if url.replace(config.MTGO_DECKLIST_PREFIX, "") not in ignore_list
         ]
 
@@ -142,11 +153,11 @@ class Scraper:
         return new_urls
 
     def process_date_range(
-            self, 
-            format_name: str, 
-            grace: int = config.DEFAULT_GRACE_DAYS, 
-            start_date: str = None, 
-            end_date: str = None
+            self,
+            format_name: str,
+            grace: int = config.DEFAULT_GRACE_DAYS,
+            start_date: str = "",
+            end_date: str = ""
         ) -> None:
         """Scrape one or more months of data for one format, and add data to dataset_path."""
         format_name = format_name.capitalize()
@@ -177,14 +188,14 @@ class Scraper:
 
         if num_failed_events > 0:
             urls = self._load_urls()
-            
+
         full_urls = [f"{config.MTGO_DECKLIST_PREFIX}{url_ending}" for url_ending in urls["failed"]["event"]]
 
         if full_urls:
             self.process_event_urls(full_urls, kill_failures=kill_failures)
 
         urls = self._load_urls()
-        
+
         new_num_events = len(urls["failed"]["event"])
         new_num_listings = len(urls["failed"]["listing"])
 
@@ -194,7 +205,7 @@ class Scraper:
             f"Events retried: {num_failed_events:03d} (Remaining: {new_num_events:03d})\n"
             "---------------------"
         )
-    
+
     def _update_decklists(self, new_decks: list[dict]) -> None:
         """Merge new decklists with the existing dataset in chronological order based on tournament date."""
         if not new_decks:
@@ -203,7 +214,7 @@ class Scraper:
         stored_decks = []
         if self.dataset_path.is_file():
             stored_decks = json.loads(self.dataset_path.read_bytes())
-        
+
         stored_decks.extend(new_decks)
         stored_decks.sort(key=lambda x: x["date"])
 
@@ -214,7 +225,7 @@ class Scraper:
         """Load the URLs for the current dataset or initialize default URL lists."""
         if self.url_file.is_file():
             return json.loads(self.url_file.read_bytes())
-        
+
         return {"completed": [], "failed": {"listing": [], "event": [], "discarded": []}}
 
     def _save_urls(self, urls_data: dict) -> None:
@@ -225,10 +236,10 @@ class Scraper:
         """Append visited URLs and remove successful/discarded URLs from the backlog."""
         stored_urls = self._load_urls()
         stored_urls["completed"].extend(visited_urls["completed"])
-        
+
         urls_to_drop = set(visited_urls["completed"] + visited_urls["discarded"])
         still_failed = [url for url in stored_urls["failed"]["event"] if url not in urls_to_drop]
-        
+
         stored_urls["failed"]["event"] = list(set(still_failed + visited_urls["failed"]))
         stored_urls["failed"]["discarded"] = list(set(stored_urls["failed"]["discarded"] + visited_urls["discarded"]))
 
@@ -237,7 +248,7 @@ class Scraper:
                 f"Failed to reach {num_errors} Url{'s' if num_errors > 1 else ''}. "
                 f"Please try them again with 'python scrape.py <dataset> <format> -retry'"
             )
-        
+
         if num_discarded := len(visited_urls["discarded"]):
             logger.debug(f"\n_killed {num_discarded} urls")
 
@@ -264,28 +275,30 @@ class Scraper:
             logger.debug(f"Initializing new play rate parquet with {len(new_df)} records")
             df = new_df
 
-        df.groupby(level=["date", "format", "card"]).sum().sort_index().to_parquet(config.AGG_PLAY_RATE_PATH, compression="snappy")
+        df.groupby(level=["date", "format", "card"]).sum().sort_index().to_parquet(
+            config.AGG_PLAY_RATE_PATH, compression="snappy"
+        )
 
     def _fetch_decklist_elements(self, url: str, kill_failures: bool) -> tuple[str, list]:
         """Fetch the decklist URL and wait for the DOM to load. Return the status and deck elements."""
         try:
             self.driver.get(url)
-            
+
             WebDriverWait(self.driver, config.DRIVER_TIMEOUT).until(
-                EC.any_of(
-                    EC.presence_of_element_located((By.CLASS_NAME, "decklist-item-page")),
-                    EC.presence_of_element_located((By.CLASS_NAME, "decklist-title"))
+                ec.any_of(
+                    ec.presence_of_element_located((By.CLASS_NAME, "decklist-item-page")),
+                    ec.presence_of_element_located((By.CLASS_NAME, "decklist-title"))
                 )
             )
-            
+
             content = self.driver.find_elements(By.CLASS_NAME, "decklist")
-            
+
             if not content:
                 # Page loaded but no decks found on it
-                if self.driver.find_elements(By.CLASS_NAME, "decklist-posted-on"): 
+                if self.driver.find_elements(By.CLASS_NAME, "decklist-posted-on"):
                     logger.warning(f"{url} has no decks. Discarding it permanently.")
                     return "discarded", []
-                
+
                 logger.warning(f"No decks found at {url}. Please retry it.")
                 return "discarded" if kill_failures else "failed", []
 
@@ -293,10 +306,10 @@ class Scraper:
             if self.driver.find_elements(By.CLASS_NAME, "decklists-page"):
                 logger.warning(f"Was redirected from {url}")
                 return "discarded" if kill_failures else "failed", []
-                
+
             logger.info(f"Gathering {len(content)} decks from {url}")
             return "completed", content
-            
+
         except selenium.common.exceptions.TimeoutException:
             logger.warning(f"Failed to reach {url}. Please retry it.")
             return "discarded" if kill_failures else "failed", []
@@ -306,16 +319,16 @@ class Scraper:
         deck_contents = decklist_text.split("\n")
         player = unidecode(deck_contents[0].split(" ")[0])
         deck = {
-            "date": self._date_from_url(url_ending), 
-            "player": player, 
-            "url": url_ending, 
-            "main": {}, 
+            "date": self._date_from_url(url_ending),
+            "player": player,
+            "url": url_ending,
+            "main": {},
             "side": {}
         }
-        
+
         parsed_cards = {}
         is_mainboard = True
-        
+
         for i in range(config.DECK_START_INDEX, len(deck_contents)):
             if "Sideboard" in deck_contents[i]:
                 is_mainboard = False
@@ -327,15 +340,15 @@ class Scraper:
                     break
             else:
                 quantity, raw_card = deck_contents[i].split(" ", 1)
-                card = unidecode(raw_card).lower().split("/")[0] 
-                
+                card = unidecode(raw_card).lower().split("/")[0]
+
                 if is_mainboard:
                     deck["main"][card] = int(quantity)
                 else:
                     deck["side"][card] = int(quantity)
-                    
+
                 parsed_cards[card] = parsed_cards.get(card, 0) + int(quantity)
-                
+
         return deck, parsed_cards
 
     def _date_from_url(self, url: str) -> str:

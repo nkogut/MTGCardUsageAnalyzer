@@ -1,33 +1,12 @@
 def get_dates_between_months(start_date: str, end_date: str) -> list[str]:
-    '''
-    Returns a list of every month between the start and end date (inclusive)
-    Inputs can be: YYYY/MM or YYYY-MM
-    Outputs are: YYYY/MM
-    '''
+    """Return a list of every month between the start and end dates (inclusive).
 
-    # Slice to remove days if invluded
-    dates = []
-    if "-" in start_date:
-        start = start_date.split("-")[:2]
-        end = end_date.split("-")[:2]
-    else:
-        # Handle '-' separated values as well as '/' separated
-        start = start_date.split("/")[:2]
-        end = end_date.split("/")[:2]
-    
-    start = [int(v) for v in start]
-    end =   [int(v) for v in end]
+    Inputs can be: YYYY/MM, YYYY-MM, or may include days. Outputs: YYYY/MM.
+    """
+    s_y, s_m = map(int, start_date.replace("-", "/").split("/")[:2])
+    e_y, e_m = map(int, end_date.replace("-", "/").split("/")[:2])
 
-    for year in range(start[0], end[0] + 1):
-        year_start_month = 1
-        year_end_month = 12
+    start_val = s_y * 12 + s_m - 1
+    end_val = e_y * 12 + e_m - 1
 
-        if year == start[0]:
-            year_start_month = start[1]
-        if year == end[0]:
-            year_end_month = end[1]
-        
-        for month in range(year_start_month, year_end_month + 1):
-            dates.append(f"{year}/{month:02}")
-
-    return dates
+    return [f"{val // 12}/{(val % 12) + 1:02}" for val in range(start_val, end_val + 1)]

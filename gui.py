@@ -1,204 +1,224 @@
 import tkinter as tk
-from tkinter import ttk
-from tkinter import scrolledtext
-from tkinter.filedialog import askopenfilename
-from tkcalendar import DateEntry
 from datetime import date
+from pathlib import Path
+from tkinter import scrolledtext, ttk
+from tkinter.filedialog import askopenfilename
+
 from dateutil.relativedelta import relativedelta
-from typing import Union
-import deck_analyzer as ca
-import data_visualization as dv
+from tkcalendar import DateEntry
+
 import card_groups
+import config
+import data_visualization as dv
+from deck_analyzer import CardMetadata, DeckAnalyzer
 
-DEFAULT_DATASET_FILE = "Data/modern.json"
-dataset = DEFAULT_DATASET_FILE
-
-search_params = {"whitelist": [], "blacklist": [], "player": None, "min_date": date(2000, 1, 1),
-                      "max_date": date(2100, 1, 1), "search_in": ["main", "side"],
-                      "event_type": ["league", "scheduled"]}
-
-def choose_file() -> None:
-    global dataset
-    dataset = askopenfilename()
-
-def parse_comma_separated_input(input: str) -> list[str]:
-    if input == "":
-        return []
-    input = input.title()
-    out = input.split(", ")
-    if len(out) > 1:
-        return out
-    else:
-        return input.split(",")
-
-def update_output(text: str) -> None:
-    output_textbox.config(state="normal")
-    output_textbox.delete(1.0, tk.END)
-    output_textbox.insert(1.0, text)
-    output_textbox.config(state="disabled")
-
-def update_search_params() -> None:
-    """
-    Update query parameters with current gui state and use ca.query_decks() to get all relevant decks
-    This is called by the "Analyze Decks", "Show Decks" and "Generate Chart" buttons, which pass it to other functions from CA to format it
-    """
-    # Set which part of deck to search in
-    if not (search_sideboard.get() + search_maindeck.get()) % 2 == 0:
-        if search_maindeck.get() == 0:
-            search_params["search_in"] = ["side"]
-        else:
-            search_params["search_in"] = ["main"]
-    else:
-        search_params["search_in"] = ["main", "side"]
-
-    # Set which types of events to search in
-    if not (search_league.get() + search_scheduled.get()) % 2 == 0:
-        if search_league.get() == 0:
-            search_params["event_type"] = ["scheduled"]
-        else:
-            search_params["event_type"] = ["league"]
-    else:
-        search_params["event_type"] = ["league", "scheduled"]
-
-    # Set the date range
-    min_date = min_date_selector.get_date()
-    max_date = max_date_selector.get_date()
-    if min_date > max_date:
-        update_output("End date is before start date")
-        return
-    search_params["min_date"] = min_date
-    search_params["max_date"] = max_date
-
-    # Set whitelist/blacklist
-    search_params["whitelist"] = parse_comma_separated_input(whitelist_textbox.get(1.0, "end-1c"))
-    search_params["blacklist"] = parse_comma_separated_input(blacklist_textbox.get(1.0, "end-1c"))
-
-    # Set Player
-    player_input = player_textbox.get(1.0, "end-1c")
-    if player_input == "":
-        search_params["player"] = None
-    else:
-        search_params["player"] = player_input
-
-def generate_chart() -> None:
-    update_search_params()
-    input_chart = parse_comma_separated_input(chart_textbox.get(1.0, "end-1c"))
-    print(search_params)
-    if not input_chart:
-        # Use dropdown
-        cards = card_groups.CARD_GROUP_DICT[chart_dropdown_value.get()]
-    else:
-        # use text input
-        cards = input_chart
-    dv.create_line_chart(considered_decks=ca.query_decks(dataset, *search_params.values()),
-                        cards=cards)
+DEFAULT_DATASET_FILE = Path("Data/modern.json")
 
 
-def query_decks() -> list[dict[str, Union[str, dict[str, int]]]]:
-    update_search_params()
-    return ca.query_decks(dataset, *search_params.values())
+class AnalyzerGUI:
+    """GUI application for filtering and displaying decks and metagames through text or charts."""
 
-# Window setup
-root = tk.Tk()
-root.title("MTG Card Usage Analyzer")
+    def __init__(self, root: tk.Tk) -> None:
+        self.root = root
+        self.root.title("MTG Card Usage Analyzer")
 
-# Dataset selection
-file_picker_button = ttk.Button(root, text="Change Dataset", command=choose_file)
-analyze_decks_button = ttk.Button(root, text="Analyze Decks", command=lambda: update_output(ca.generate_card_frequency_report(query_decks())))
-show_decks_button = ttk.Button(root, text="Show Decks", command=lambda: update_output(ca.generate_decklist_report(query_decks())))
+        self.dataset_path = DEFAULT_DATASET_FILE
+        self.analyzer = DeckAnalyzer(dataset_path=self.dataset_path, card_metadata=CardMetadata())
 
-# Maindeck/Sideboard selection
-search_maindeck = tk.Int_var(value=1)
-search_sideboard = tk.Int_var(value=1)
-search_in_menu = tk.Frame(root)
-search_in_menu_label = tk.Label(search_in_menu, text="Search in:")
-search_in_maindeck_checkbox = ttk.Checkbutton(search_in_menu, text="Maindeck", variable=search_maindeck)
-search_in_sideboard_checkbox = ttk.Checkbutton(search_in_menu, text="Sideboard", variable=search_sideboard)
+        self.search_params = {
+            "whitelist": [],
+            "blacklist": [],
+            "player": None,
+            "min_date": date(2000, 1, 1),
+            "max_date": date(2100, 1, 1),
+            "search_in": ["main", "side"],
+            "event_type": ["league", "scheduled"]
+        }
 
-search_in_menu_label.grid(row=0, columnspan=2)
-search_in_maindeck_checkbox.grid(row=1, column=0)
-search_in_sideboard_checkbox.grid(row=1, column=1)
+        self._build_ui()
 
+    def _build_ui(self) -> None:  # noqa: PLR0915
+        """Construct the initial UI layout and state."""
+        # Dataset selection
+        self.file_picker_button = ttk.Button(self.root, text="Change Dataset", command=self._choose_file)
+        self.analyze_decks_button = ttk.Button(self.root, text="Analyze Decks", command=self._analyze_decks)
+        self.show_decks_button = ttk.Button(self.root, text="Show Decks", command=self._show_decks)
 
-#Event type selection
-search_league = tk.Int_var(value=1)
-search_scheduled = tk.Int_var(value=1)
-event_type_menu = tk.Frame(root)
-event_type_menu_label = tk.Label(event_type_menu, text="Event types:")
-league_checkbox = ttk.Checkbutton(event_type_menu, text="Leagues", variable=search_league)
-scheduled_checkbox = ttk.Checkbutton(event_type_menu, text="Scheduled", variable=search_scheduled)
+        # Maindeck/Sideboard selection
+        self.search_maindeck_var = tk.IntVar(value=1)
+        self.search_sideboard_var = tk.IntVar(value=1)
+        self.search_in_menu = tk.Frame(self.root)
+        self.search_in_menu_label = tk.Label(self.search_in_menu, text="Search in:")
+        self.search_in_maindeck_checkbox = ttk.Checkbutton(
+            self.search_in_menu, text="Maindeck", variable=self.search_maindeck_var
+        )
+        self.search_in_sideboard_checkbox = ttk.Checkbutton(
+            self.search_in_menu, text="Sideboard", variable=self.search_sideboard_var
+        )
 
-event_type_menu_label.grid(row=0, columnspan=2)
-league_checkbox.grid(row=1, column=0)
-scheduled_checkbox.grid(row=1, column=1)
+        self.search_in_menu_label.grid(row=0, columnspan=2)
+        self.search_in_maindeck_checkbox.grid(row=1, column=0)
+        self.search_in_sideboard_checkbox.grid(row=1, column=1)
 
+        # Event type selection
+        self.search_league_var = tk.IntVar(value=1)
+        self.search_scheduled = tk.IntVar(value=1)
+        self.event_type_menu = tk.Frame(self.root)
+        self.event_type_menu_label = tk.Label(self.event_type_menu, text="Event types:")
+        self.league_checkbox = ttk.Checkbutton(
+            self.event_type_menu,
+            text="Leagues",
+            variable=self.search_league_var
+        )
+        self.scheduled_checkbox = ttk.Checkbutton(
+            self.event_type_menu,
+            text="Scheduled",
+            variable=self.search_scheduled
+        )
 
-#Date selection
-date_menu = tk.Frame(root)
-default_start_date = date.today() - relativedelta(months=6)
-min_date_label = tk.Label(date_menu, text="Start date:")
-max_date_label = tk.Label(date_menu, text="End date:")
-min_date_selector = Date_entry(date_menu, year=default_start_date.year, month=default_start_date.month, day=1)
-max_date_selector = Date_entry(date_menu)
+        self.event_type_menu_label.grid(row=0, columnspan=2)
+        self.league_checkbox.grid(row=1, column=0)
+        self.scheduled_checkbox.grid(row=1, column=1)
 
-min_date_label.grid(row=0, column=0)
-max_date_label.grid(row=0, column=1)
-min_date_selector.grid(row=1, column=0)
-max_date_selector.grid(row=1, column=1)
+        # Date selection
+        self.date_menu = tk.Frame(self.root)
+        default_start_date = date.today() - relativedelta(months=6)
+        self.min_date_label = tk.Label(self.date_menu, text="Start date:")
+        self.max_date_label = tk.Label(self.date_menu, text="End date:")
+        self.min_date_selector = DateEntry(
+            self.date_menu, year=default_start_date.year, month=default_start_date.month, day=1
+        )
+        self.max_date_selector = DateEntry(self.date_menu)
 
+        self.min_date_label.grid(row=0, column=0)
+        self.max_date_label.grid(row=0, column=1)
+        self.min_date_selector.grid(row=1, column=0)
+        self.max_date_selector.grid(row=1, column=1)
 
-# Whitelist/Blacklist selection
-card_list_input_menu = tk.Frame(root)
-whitelist_label = tk.Label(card_list_input_menu, text="Decks including:")
-blacklist_label = tk.Label(card_list_input_menu, text="Excluding decks with:")
-player_label = tk.Label(card_list_input_menu, text="Player (up to 1)")
-card_list_input_instruction_label = tk.Label(card_list_input_menu, text="Enter as 'card a,card b,card c'")
-whitelist_textbox = tk.Text(card_list_input_menu, height=1, width=25)
-blacklist_textbox = tk.Text(card_list_input_menu, height=1, width=25)
-player_textbox = tk.Text(card_list_input_menu, height=1, width=15)
+        # Whitelist/Blacklist selection
+        self.card_list_input_menu = tk.Frame(self.root)
+        self.whitelist_label = tk.Label(self.card_list_input_menu, text="Decks including:")
+        self.blacklist_label = tk.Label(self.card_list_input_menu, text="Excluding decks with:")
+        self.player_label = tk.Label(self.card_list_input_menu, text="Player (up to 1)")
+        self.card_list_input_instruction_label = tk.Label(self.card_list_input_menu, text="Enter as 'card a,card b'")
 
-card_list_input_instruction_label.grid(row=0, column=1)
-whitelist_label.grid(row=1, column=0)
-whitelist_textbox.grid(row=1, column=1)
-blacklist_label.grid(row=2, column=0)
-blacklist_textbox.grid(row=2, column=1)
-player_label.grid(row=3, column=0)
-player_textbox.grid(row=3, column=1)
+        self.whitelist_textbox = tk.Text(self.card_list_input_menu, height=1, width=25)
+        self.blacklist_textbox = tk.Text(self.card_list_input_menu, height=1, width=25)
+        self.player_textbox = tk.Text(self.card_list_input_menu, height=1, width=15)
 
+        self.card_list_input_instruction_label.grid(row=0, column=1)
+        self.whitelist_label.grid(row=1, column=0)
+        self.whitelist_textbox.grid(row=1, column=1)
+        self.blacklist_label.grid(row=2, column=0)
+        self.blacklist_textbox.grid(row=2, column=1)
+        self.player_label.grid(row=3, column=0)
+        self.player_textbox.grid(row=3, column=1)
 
-# Chart selection
-chart_menu = tk.Frame(root)
-generate_chart_button = ttk.Button(chart_menu, text="Generate Historical Graph", command=generate_chart)
-custom_chart_label = tk.Label(chart_menu, text="Optional - Graph the prevalence of these cards:")
-preset_chart_label = tk.Label(chart_menu, text="Or choose a preset group")
-chart_dropdown_value = tk.String_var()
-chart_dropdown_value.set(list(card_groups.CARD_GROUP_DICT.keys())[0])
-chart_dropdown = tk.Option_menu(chart_menu, chart_dropdown_value, *card_groups.CARD_GROUP_DICT.keys())
-chart_textbox = tk.Text(chart_menu, height=1, width=25)
+        # Chart selection
+        self.chart_menu = tk.Frame(self.root)
+        self.generate_chart_button = ttk.Button(self.chart_menu, text="Generate Graph", command=self._generate_chart)
+        self.custom_chart_label = tk.Label(self.chart_menu, text="Optional - Graph the prevalence of these cards:")
+        self.preset_chart_label = tk.Label(self.chart_menu, text="Or choose a preset group")
 
-custom_chart_label.grid(row=0, column=0)
-chart_textbox.grid(row=0, column=1)
-generate_chart_button.grid(row=0, column=2)
-preset_chart_label.grid(row=1, column=0)
-chart_dropdown.grid(row=1, column=1)
+        self.chart_dropdown_value = tk.StringVar()
+        group_keys = list(card_groups.CARD_GROUP_DICT.keys())
+        self.chart_dropdown_value.set(group_keys[0])
+        self.chart_dropdown = tk.OptionMenu(self.chart_menu, self.chart_dropdown_value, *group_keys)
 
+        self.chart_textbox = tk.Text(self.chart_menu, height=1, width=25)
 
-# Output
-output_textbox = scrolledtext.Scrolled_text(root, state="disabled", width=160, height=30, wrap=tk.WORD)
+        self.custom_chart_label.grid(row=0, column=0)
+        self.chart_textbox.grid(row=0, column=1)
+        self.generate_chart_button.grid(row=0, column=2)
+        self.preset_chart_label.grid(row=1, column=0)
+        self.chart_dropdown.grid(row=1, column=1)
 
+        # Output
+        self.output_textbox = scrolledtext.ScrolledText(self.root, state="disabled", width=160, height=30, wrap=tk.WORD)
 
-# Populate window
-file_picker_button.grid(row=0, column=0)
-date_menu.grid(row=0, column=1)
-search_in_menu.grid(row=1, column=0)
-event_type_menu.grid(row=1, column=1)
-card_list_input_menu.grid(row=2, columnspan=2)
-analyze_decks_button.grid(row=3, column=0)
-show_decks_button.grid(row=3, column=1)
-chart_menu.grid(row=4, columnspan=2)
-output_textbox.grid(row=6, columnspan=2)
+        # Populate window
+        self.file_picker_button.grid(row=0, column=0)
+        self.date_menu.grid(row=0, column=1)
+        self.search_in_menu.grid(row=1, column=0)
+        self.event_type_menu.grid(row=1, column=1)
+        self.card_list_input_menu.grid(row=2, columnspan=2)
+        self.analyze_decks_button.grid(row=3, column=0)
+        self.show_decks_button.grid(row=3, column=1)
+        self.chart_menu.grid(row=4, columnspan=2)
+        self.output_textbox.grid(row=6, columnspan=2)
 
+    def _choose_file(self) -> None:
+        """Prompt user for a new dataset file and re-initialize the deck analyzer object."""
+        if new_file := askopenfilename():
+            self.dataset_path = Path(new_file)
+            self.analyzer = DeckAnalyzer(dataset_path=self.dataset_path, card_metadata=CardMetadata())
 
-# Draw window
-mainframe = ttk.Frame(root)
-root.mainloop()
+    def _parse_card_name_list(self, text: str) -> list[str]:
+        """Parse and normalize semicolon-separated card names."""
+        if not text:
+            return []
+        return [t.strip().title() for t in text.split(";")]
+
+    def _update_output(self, text: str) -> None:
+        """Overwrite the output textbox with new text."""
+        self.output_textbox.config(state="normal")
+        self.output_textbox.delete(1.0, tk.END)
+        self.output_textbox.insert(1.0, text)
+        self.output_textbox.config(state="disabled")
+
+    def _update_search_params(self) -> None:
+        """Update query parameters with the current state."""
+        search_in = []
+        if self.search_maindeck_var.get():
+            search_in.append("main")
+        if self.search_sideboard_var.get():
+            search_in.append("side")
+        self.search_params["search_in"] = search_in if search_in else ["main", "side"]
+
+        event_type = []
+        if self.search_league_var.get():
+            event_type.append("league")
+        if self.search_scheduled.get():
+            event_type.append("scheduled")
+        self.search_params["event_type"] = event_type if event_type else ["league", "scheduled"]
+
+        min_date = self.min_date_selector.get_date()
+        max_date = self.max_date_selector.get_date()
+        if min_date > max_date:
+            self._update_output("End date is before start date")
+            return
+
+        self.search_params["min_date"] = min_date
+        self.search_params["max_date"] = max_date
+
+        self.search_params["whitelist"] = self._parse_card_name_list(self.whitelist_textbox.get(1.0, "end-1c"))
+        self.search_params["blacklist"] = self._parse_card_name_list(self.blacklist_textbox.get(1.0, "end-1c"))
+
+        player_input = self.player_textbox.get(1.0, "end-1c").strip()
+        self.search_params["player"] = player_input if player_input else None
+
+    def _query_decks(self) -> config.DATASET_CHUNK_TYPE:
+        """Fetch decks from the analyzer matching current GUI parameters."""
+        self._update_search_params()
+        return self.analyzer.query_decks(*self.search_params.values())
+
+    def _analyze_decks(self) -> None:
+        """Generate and display a card frequency report."""
+        self._update_output(self.analyzer.generate_card_frequency_report(self._query_decks()))
+
+    def _show_decks(self) -> None:
+        """Generate and display a decklist report."""
+        self._update_output(self.analyzer.generate_decklist_report(self._query_decks()))
+
+    def _generate_chart(self) -> None:
+        """Generate a historical prevalence graph based on selected cards."""
+        self._update_search_params()
+        input_chart = self._parse_card_name_list(self.chart_textbox.get(1.0, "end-1c"))
+        cards = input_chart if input_chart else card_groups.CARD_GROUP_DICT[self.chart_dropdown_value.get()]
+
+        dv.create_line_chart(considered_decks=self._query_decks(), cards=cards)
+
+if __name__ == "__main__":
+    root_window = tk.Tk()
+    app = AnalyzerGUI(root_window)
+    root_window.mainloop()

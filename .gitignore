@@ -11,7 +11,7 @@ Data/
 logs/
 aggregate_data/
 
-
+*.egg-info/
 *.xml
 *.bat
 *.vbs

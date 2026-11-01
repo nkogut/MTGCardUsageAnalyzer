@@ -1,7 +1,5 @@
 import argparse
-import time
 import logging
-
 from pathlib import Path
 
 from config import DEFAULT_GRACE_DAYS, JSON_EXT
@@ -13,11 +11,22 @@ if __name__ == "__main__":
     parser.add_argument("format", help="Format name to scrape. e.g. 'modern'")
     parser.add_argument("-start", nargs="?", help="first month to scrape. e.g. '2025/1'")
     parser.add_argument("-end", nargs="?", help="last month to scrape. e.g. '2025/10'")
-    parser.add_argument("-grace", nargs="?", help="# of days before start date to begin scraping. Intended to prevent coverage issues when automated. \nOnly applies if no start date is given. Default: 7")
-    parser.add_argument("-skip", action=argparse.BooleanOptionalAction, help="Skip updating card dictionary references. Only use if no new cards have been added to Scryfall recently")
-    parser.add_argument("-retry", action=argparse.BooleanOptionalAction, help="Retry all urls which failed previously instaed of a normal scrape.")
-    parser.add_argument("-kill", action=argparse.BooleanOptionalAction, help="Retry failed urls, and permanently remove them. Use after many retries with no improvement")
-    
+    parser.add_argument("-grace", nargs="?",
+        help=(
+            "# of days before start date to begin scraping. Intended to prevent coverage issues when automated.\n"
+            "Only applies if no start date is given. Default: 7"
+        ),
+    )
+    parser.add_argument("-retry", action=argparse.BooleanOptionalAction,
+        help="Retry all urls which failed previously instead of a normal scrape.",
+    )
+    parser.add_argument("-kill", action=argparse.BooleanOptionalAction,
+        help=(
+            "Retry failed urls, and permanently remove them. "
+            "Use after many retries with no improvement."
+        ),
+    )
+
     # Format args and set default values
     args = parser.parse_args()
 
@@ -42,4 +51,3 @@ if __name__ == "__main__":
             scraper.retry_backlog_urls(args.format, kill_failures=False)
         else:
             scraper.process_date_range(args.format, grace=args.grace, start_date=args.start, end_date=args.end)
-# TODO: args.skip

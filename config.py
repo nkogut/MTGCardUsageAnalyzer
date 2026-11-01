@@ -1,6 +1,8 @@
-import pandas as pd
 from datetime import date
 from pathlib import Path
+from typing import TypedDict
+
+import pandas as pd
 
 # Daily Aggregates
 AGG_START_DATE = pd.Timestamp("2022-12-01")
@@ -12,6 +14,7 @@ CARD_PROPERTIES_PATH = DATA_DIR / "card_properties.json"
 URLS_FILE_SUFFIX = "_urls.json"
 JSON_EXT = ".json"
 XML_EXT = ".xml"
+MODERN_DATA_PATH = DATA_DIR / "modern.json"
 
 # Dates
 DEFAULT_MIN_DATE = date(1900, 1, 1)
@@ -29,7 +32,7 @@ SCRYFALL_CATALOG_TIMEOUT = 10
 SCRYFALL_BULK_DATA_TIMEOUT = 30
 
 CARD_TYPE_SEPARATORS = (
-    "Creature (", "Land (", "Instant (", "Sorcery (", "Artifact (", "Enchantment (", "Planeswalker (","Other (", 
+    "Creature (", "Land (", "Instant (", "Sorcery (", "Artifact (", "Enchantment (", "Planeswalker (","Other (",
     "Rarity", "Cards"
 )
 
@@ -42,6 +45,16 @@ DRIVER_TIMEOUT = 4
 DEFAULT_GRACE_DAYS = 7
 
 # ==== Analyzer ====
+class DeckEntry(TypedDict):
+    """JSON stored representation of one deck within a tournamnet."""
+
+    date: str
+    player: str
+    url: str
+    main: dict[str, int]
+    side: dict[str, int]
+
+DATASET_CHUNK_TYPE = list[DeckEntry]
 
 # Default settings
 EVENT_TYPES = {

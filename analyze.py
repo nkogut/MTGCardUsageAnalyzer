@@ -1,6 +1,7 @@
 import argparse
-import xml.etree.ElementTree as ET
 import ast
+import sys
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 
@@ -8,13 +9,16 @@ import config
 from card_metadata import CardMetadata
 from deck_analyzer import DeckAnalyzer
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("analyze")
-    
+
     # XML-related args
-    parser.add_argument("-prefs", "-p", nargs="?", help="Optional XML file containing default values in addition to given args")
-    parser.add_argument("-save", nargs="?", help="Save the preferences from this search to an XML file with the given name")
+    parser.add_argument("-prefs", "-p", nargs="?",
+        help="Optional XML file containing default values in addition to given args"
+    )
+    parser.add_argument("-save", nargs="?",
+        help="Save the preferences from this search to an XML file with the given name"
+    )
 
     # Required args (may be provided by XML instead)
     parser.add_argument("-dataset", "-d", nargs="?", help="e.g. 'full_modern'")
@@ -27,12 +31,20 @@ if __name__ == "__main__":
     parser.add_argument("-blacklist", "-b", nargs="*", help="e.g. \"kappa cann\" \"thought monitor\" memnite ...")
     parser.add_argument("-player", nargs="?", help="Search only for decks from a specific player")
     parser.add_argument("-type", nargs="*", help="Return only cards of a specific type(s)")
-    parser.add_argument("-main", action=argparse.BooleanOptionalAction, help="Search only when the card is in the maindeck")
-    parser.add_argument("-side", action=argparse.BooleanOptionalAction, help="Search only when the card is in the sideboard")
-    parser.add_argument("-fprops", action=argparse.BooleanOptionalAction, help="Forcefully update the Card Properties dataset")
+    parser.add_argument("-main", action=argparse.BooleanOptionalAction,
+        help="Search only when the card is in the maindeck"
+    )
+    parser.add_argument("-side", action=argparse.BooleanOptionalAction,
+        help="Search only when the card is in the sideboard"
+    )
+    parser.add_argument("-fprops", action=argparse.BooleanOptionalAction,
+        help="Forcefully update the Card Properties dataset"
+    )
     parser.add_argument("-event", nargs="*", help="'league' or 'scheduled'")
-    parser.add_argument("-lists", "-l", action=argparse.BooleanOptionalAction, help="Show full decklists instead of card stats")
-    
+    parser.add_argument("-lists", "-l", action=argparse.BooleanOptionalAction,
+        help="Show full decklists instead of card stats"
+    )
+
     args = vars(parser.parse_args())
 
     # Parse the XML tree if provided
@@ -43,22 +55,23 @@ if __name__ == "__main__":
             root = tree.getroot()
             for child in root:
                 # Input overwrites XML
-                if args.get(child.tag) is None and child.text != "None": 
-                    value = child.text
+                text = child.text or ""
+                if args.get(child.tag) is None and text != "None":
+                    value = child.text or ""
                     if "[" in value:
-                        value = ast.literal_eval(child.text)
-                    
+                        value = ast.literal_eval(text)
+
                     args[child.tag] = value
 
-        except Exception as e: 
+        except Exception:
             print(f"Error: could not parse {prefs_path}. Please check that it exists and is valid.")
-            quit()
+            sys.exit()
 
     # Save the new XML tree including CLI args if requested by -save
     if args["save"]:
         save_path = Path(args["save"]).with_suffix(config.XML_EXT)
         args["save"] = None
-        
+
         # Build XML tree
         root = ET.Element("prefs")
         for k, v in args.items():
@@ -81,7 +94,7 @@ if __name__ == "__main__":
                 missing.append(arg)
                 print(f"Error: no value specified for {arg}.")
         if missing:
-            quit()
+            sys.exit()
 
     # Dataset resolution
     dataset = None
@@ -89,7 +102,7 @@ if __name__ == "__main__":
         dataset = Path(args["dataset"])
         if dataset.suffix != config.JSON_EXT:
             dataset = dataset.with_suffix(config.JSON_EXT)
-        
+
         if args.get("dsPath"):
             dataset = Path(args["dsPath"]) / dataset
 
@@ -109,13 +122,11 @@ if __name__ == "__main__":
 
     search_in = search_in or None
     force_update_props = bool(args.get("fprops"))
-    
-    if force_update_props or dataset is not None:
-        card_metadata = CardMetadata(force_update=force_update_props)
 
     if dataset is not None:
+        card_metadata = CardMetadata(force_update=force_update_props)
         analyzer = DeckAnalyzer(dataset_path=dataset, card_metadata=card_metadata)
-        
+
         decks = analyzer.query_decks(
             whitelist=args.get("whitelist"),
             blacklist=args.get("blacklist"),
@@ -125,7 +136,7 @@ if __name__ == "__main__":
             search_in=search_in,
             event_types=args.get("event")
         )
-    
+
         if args.get("lists"):
             print(analyzer.generate_decklist_report(decks))
         else:
