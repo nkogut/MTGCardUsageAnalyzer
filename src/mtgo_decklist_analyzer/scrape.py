@@ -13,7 +13,7 @@ if __name__ == "__main__":
     parser.add_argument("-end", nargs="?", help="last month to scrape. e.g. '2025/10'")
     parser.add_argument("-grace", nargs="?",
         help=(
-            "# of days before start date to begin scraping. Intended to prevent coverage issues when automated.\n"
+            "# of days grace period before start date to begin scraping.\n"
             "Only applies if no start date is given. Default: 7"
         ),
     )

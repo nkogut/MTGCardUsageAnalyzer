@@ -133,6 +133,9 @@ class DeckAnalyzer:
         max_quantity_len = len(str(max(freqs["main"].values(), key=lambda x: x[0], default=[0])[0]))
 
         for location in SETTINGS.analyzer.search_in_default:
+            if location == "main":
+                            output += "---MAINBOARD---\n"
+
             if location == "side":
                 output += "\n\n---SIDEBOARD---\n"
 

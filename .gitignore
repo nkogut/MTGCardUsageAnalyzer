@@ -6,8 +6,8 @@
 Scripts/
 __pycache__/
 
-Backups/
-Data/
+backups/
+data/
 logs/
 aggregate_data/
 
@@ -20,7 +20,3 @@ aggregate_data/
 
 noinclude.py
 TODO.txt
-
-
-!Data/sample_modern.json
-!samplePrefs.xml
