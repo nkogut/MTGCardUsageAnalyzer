@@ -7,10 +7,11 @@ from tkinter.filedialog import askopenfilename
 from dateutil.relativedelta import relativedelta
 from tkcalendar import DateEntry
 
-import card_groups
-import config
-import data_visualization as dv
-from deck_analyzer import CardMetadata, DeckAnalyzer
+from mtgo_decklist_analyzer.card_metadata import CardMetadata
+from mtgo_decklist_analyzer.config import CARD_GROUPS
+from mtgo_decklist_analyzer.data_visualization import create_line_chart
+from mtgo_decklist_analyzer.deck_analyzer import DeckAnalyzer
+from mtgo_decklist_analyzer.types import DeckEntries, SearchParams
 
 DEFAULT_DATASET_FILE = Path("Data/modern.json")
 
@@ -25,14 +26,14 @@ class AnalyzerGUI:
         self.dataset_path = DEFAULT_DATASET_FILE
         self.analyzer = DeckAnalyzer(dataset_path=self.dataset_path, card_metadata=CardMetadata())
 
-        self.search_params = {
+        self.search_params: SearchParams = {
             "whitelist": [],
             "blacklist": [],
             "player": None,
             "min_date": date(2000, 1, 1),
             "max_date": date(2100, 1, 1),
             "search_in": ["main", "side"],
-            "event_type": ["league", "scheduled"]
+            "event_types": ["league", "scheduled"]
         }
 
         self._build_ui()
@@ -100,7 +101,7 @@ class AnalyzerGUI:
         self.whitelist_label = tk.Label(self.card_list_input_menu, text="Decks including:")
         self.blacklist_label = tk.Label(self.card_list_input_menu, text="Excluding decks with:")
         self.player_label = tk.Label(self.card_list_input_menu, text="Player (up to 1)")
-        self.card_list_input_instruction_label = tk.Label(self.card_list_input_menu, text="Enter as 'card a,card b'")
+        self.card_list_input_instruction_label = tk.Label(self.card_list_input_menu, text="Enter as 'card a;card b'")
 
         self.whitelist_textbox = tk.Text(self.card_list_input_menu, height=1, width=25)
         self.blacklist_textbox = tk.Text(self.card_list_input_menu, height=1, width=25)
@@ -121,7 +122,7 @@ class AnalyzerGUI:
         self.preset_chart_label = tk.Label(self.chart_menu, text="Or choose a preset group")
 
         self.chart_dropdown_value = tk.StringVar()
-        group_keys = list(card_groups.CARD_GROUP_DICT.keys())
+        group_keys = list(CARD_GROUPS.keys())
         self.chart_dropdown_value.set(group_keys[0])
         self.chart_dropdown = tk.OptionMenu(self.chart_menu, self.chart_dropdown_value, *group_keys)
 
@@ -180,7 +181,7 @@ class AnalyzerGUI:
             event_type.append("league")
         if self.search_scheduled.get():
             event_type.append("scheduled")
-        self.search_params["event_type"] = event_type if event_type else ["league", "scheduled"]
+        self.search_params["event_types"] = event_type if event_type else ["league", "scheduled"]
 
         min_date = self.min_date_selector.get_date()
         max_date = self.max_date_selector.get_date()
@@ -197,10 +198,10 @@ class AnalyzerGUI:
         player_input = self.player_textbox.get(1.0, "end-1c").strip()
         self.search_params["player"] = player_input if player_input else None
 
-    def _query_decks(self) -> config.DATASET_CHUNK_TYPE:
+    def _query_decks(self) -> DeckEntries:
         """Fetch decks from the analyzer matching current GUI parameters."""
         self._update_search_params()
-        return self.analyzer.query_decks(*self.search_params.values())
+        return self.analyzer.query_decks(self.search_params)
 
     def _analyze_decks(self) -> None:
         """Generate and display a card frequency report."""
@@ -214,9 +215,9 @@ class AnalyzerGUI:
         """Generate a historical prevalence graph based on selected cards."""
         self._update_search_params()
         input_chart = self._parse_card_name_list(self.chart_textbox.get(1.0, "end-1c"))
-        cards = input_chart if input_chart else card_groups.CARD_GROUP_DICT[self.chart_dropdown_value.get()]
+        cards = input_chart if input_chart else CARD_GROUPS[self.chart_dropdown_value.get()]
 
-        dv.create_line_chart(considered_decks=self._query_decks(), cards=cards)
+        create_line_chart(considered_decks=self._query_decks(), cards=cards)
 
 if __name__ == "__main__":
     root_window = tk.Tk()

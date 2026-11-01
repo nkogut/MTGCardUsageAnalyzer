@@ -1,0 +1,46 @@
+[paths]
+data_dir = "data"
+card_properties = "data/card_properties.json"
+modern_data = "data/modern.json"
+agg_play_rate = "aggregate_data/playrates.parquet"
+
+[extensions]
+urls_file_suffix = "_urls.json"
+json = ".json"
+xml = ".xml"
+
+[dates]
+agg_start_date = "2022-12-01"
+default_min_date = "1900-01-01"
+default_max_date = "2100-01-01"
+default_min_date_str = "1900/01"
+default_max_date_str = "9999/01"
+date_fmt_deck = "%Y-%m-%d"
+date_fmt_cli = "%Y/%m"
+
+[scryfall]
+bulk_data_url = "https://scryfall.com/docs/api/bulk-data"
+ignored_set_categories = ["vanguard", "token", "memorabilia", "alchemy", "minigame"]
+ignored_card_layouts = ["art_series", "planar", "scheme"]
+catalog_timeout = 10
+bulk_data_timeout = 30
+
+
+[scraper]
+mtgo_decklist_prefix = "https://www.mtgo.com/decklist/"
+mtgo_decklists_list_prefix = "https://www.mtgo.com/decklists/"
+deck_start_index = 9
+driver_timeout = 4
+default_grace_days = 7
+card_type_separators = [
+    "Creature (", "Land (", "Instant (", "Sorcery (", "Artifact (", "Enchantment (", "Planeswalker (", "Other (",
+    "Rarity", "Cards"
+]
+
+[analyzer]
+default_event_types = ["league", "scheduled"]
+search_in_default = ["main", "side"]
+
+[analyzer.event_types]
+league = ["league", "gold", "daily"]
+scheduled = ["prelim", "challenge", "ptq", "championship", "qualifier", "playoff", "finals", "last-chance"]

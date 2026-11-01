@@ -17,21 +17,21 @@ The Scraper and Card Analyzer functionality is now available via the command lin
 Find detailed stats about decks right in the command line. Quickly adjust a wide variety of criteria to refine your searches.
 
 python analyze.py -h
-![terminal output for python analyze.py -h](Demos/analyzeH.png)
+![terminal output for python analyze.py -h](demos/analyzeH.png)
 
 ## Scraper
 
 Scrape months worth of decks at a time using the scraper CLI. Easily maintain separate databases for different formats and timeframes.
 
 python scrape.py -h
-![terminal output for python scrape.py -h](Demos/scrapeH.png)
+![terminal output for python scrape.py -h](demos/scrapeH.png)
 
 # GUI
 
 ## Demo - Deck Search
 
-![Example using GUI Deck Search](Demos/mododemo0.gif)
+![Example using GUI Deck Search](demos/mododemo0.gif)
 
 ## Demo - Historical Chart
 
-![Example using GUI Chart Generation](Demos/mododemo1.gif)
+![Example using GUI Chart Generation](demos/mododemo1.gif)

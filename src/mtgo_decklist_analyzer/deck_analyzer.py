@@ -1,13 +1,13 @@
 import logging
 import string
 from collections import defaultdict
-from datetime import date
 from pathlib import Path
 
 import orjson as json
 
-import config
-from card_metadata import CardMetadata
+from mtgo_decklist_analyzer.card_metadata import CardMetadata
+from mtgo_decklist_analyzer.config import SETTINGS
+from mtgo_decklist_analyzer.types import DeckEntries, DeckEntry, FreqCounter, SearchParams
 
 logger = logging.getLogger(__name__)
 
@@ -19,32 +19,31 @@ class DeckAnalyzer:
         self.card_metadata = card_metadata
         self.dataset = json.loads(self.dataset_path.read_bytes())
 
-    def query_decks(
-        self,
-        whitelist: list[str] | None = None,
-        blacklist: list[str] | None = None,
-        player: str | None = None,
-        min_date: date | None = None,
-        max_date: date | None = None,
-        search_in: list[str] | None = None,
-        event_types: list[str] | None = None
-    ) -> config.DATASET_CHUNK_TYPE:
+    def query_decks(self, params: SearchParams | None = None) -> DeckEntries:
         """Gather all decks matching the specified criteria."""
-        whitelist = [v.lower() for v in (whitelist or [])]
-        blacklist = [v.lower() for v in (blacklist or [])]
-        search_in = search_in or list(config.SEARCH_IN_DEFAULT)
-        event_types = [v.lower() for v in event_types] if event_types else list(config.DEFAULT_EVENT_TYPES)
+        if params is None:
+            params = {
+                "whitelist": [],
+                "blacklist": [],
+                "player": None,
+                "min_date": SETTINGS.dates.default_min_date,
+                "max_date": SETTINGS.dates.default_max_date,
+                "search_in": list(SETTINGS.analyzer.search_in_default),
+                "event_types": list(SETTINGS.analyzer.default_event_types)
+            }
 
-        if player:
-            player = player.lower()
+        whitelist = [v.lower() for v in params["whitelist"]]
+        blacklist = [v.lower() for v in params["blacklist"]]
+        search_in = params["search_in"]
+        event_types = [v.lower() for v in params["event_types"]]
 
-        min_date = min_date or config.DEFAULT_MIN_DATE
-        max_date = max_date or config.DEFAULT_MAX_DATE
-        min_date_str = min_date.strftime(config.DATE_FMT_DECK)
-        max_date_str = max_date.strftime(config.DATE_FMT_DECK)
+        player = params["player"].lower() if params["player"] else None
+
+        min_date_str = params["min_date"].strftime(SETTINGS.dates.date_fmt_deck)
+        max_date_str = params["max_date"].strftime(SETTINGS.dates.date_fmt_deck)
 
         # Combine events into a string for efficient partial match testing
-        matchable_events = "@".join(["@".join(config.EVENT_TYPES[k]) for k in event_types])
+        matchable_events = "@".join(["@".join(SETTINGS.analyzer.event_types[k]) for k in event_types])
 
         filtered_dataset = [deck for deck in self.dataset if min_date_str <= deck["date"] <= max_date_str]
         found_decks = []
@@ -62,7 +61,7 @@ class DeckAnalyzer:
 
         return found_decks
 
-    def generate_decklist_report(self, decks: config.DATASET_CHUNK_TYPE | None) -> str:
+    def generate_decklist_report(self, decks: DeckEntries | None) -> str:
         """Format a list of decklists into a pretty-printable format with some additional metadata per card."""
         if not decks:
             return ""
@@ -89,7 +88,7 @@ class DeckAnalyzer:
 
     def generate_card_frequency_report(
         self,
-        sample: config.DATASET_CHUNK_TYPE,
+        sample: DeckEntries,
         show_types: list[str] | None = None
     ) -> str:
         """Calculate the frequency of each card across the sample."""
@@ -99,15 +98,18 @@ class DeckAnalyzer:
         recognizeable_cards = self.card_metadata.data.keys()
         num_decks = len(sample)
 
-        show_types = [string.capwords(t) for t in show_types] if show_types else []
-        # Use defaultdict to avoid branching on dictionary key existence
-        prevalence_dict = {"main": defaultdict(lambda: [0, 0]), "side": defaultdict(lambda: [0, 0])}
+        selected_types: list[str] = [string.capwords(t) for t in show_types] if show_types else []
+
+        freqs: FreqCounter = {
+            "main": defaultdict(lambda: [0, 0]),
+            "side": defaultdict(lambda: [0, 0])
+        }
         max_card_len = 0
         unrecognizable_cards = set()
         output = ""
 
-        for location in config.SEARCH_IN_DEFAULT:
-            loc_dict = prevalence_dict[location]
+        for location in SETTINGS.analyzer.search_in_default:
+            loc_dict = freqs[location]
             for deck in sample:
                 for card, quantity in deck[location].items():
                     if card not in recognizeable_cards:
@@ -124,25 +126,23 @@ class DeckAnalyzer:
                 current_max = max(len(self.card_metadata.data.get(k, {}).get("display_name", str(k))) for k in loc_dict)
                 max_card_len = max(max_card_len, current_max)
 
-        if not prevalence_dict["main"] and not prevalence_dict["side"]:
+        if not freqs["main"] and not freqs["side"]:
             return "No recognizable cards found."
 
         # Cast to standard dicts if needed downstream, or just leave as defaultdicts
-        max_quantity_len = len(str(max(prevalence_dict["main"].values(), key=lambda x: x[0], default=[0])[0]))
+        max_quantity_len = len(str(max(freqs["main"].values(), key=lambda x: x[0], default=[0])[0]))
 
-        for location in config.SEARCH_IN_DEFAULT:
+        for location in SETTINGS.analyzer.search_in_default:
             if location == "side":
                 output += "\n\n---SIDEBOARD---\n"
 
-            items_to_sort = prevalence_dict[location].items()
-            if show_types:
+            items_to_sort = freqs[location].items()
+            if selected_types:
                 def keep(name: str) -> bool:
-                    return any(t in self.card_metadata.data[name]["type"] for t in show_types)
+                    return any(t in self.card_metadata.data[name]["type"] for t in selected_types)
                 items_to_sort = ((k, v) for k, v in items_to_sort if keep(k))
 
             quantity_descending = sorted(items_to_sort, key=lambda x: x[1][0], reverse=True)
-
-            quantity_descending = sorted(prevalence_dict[location].items(), key=lambda x: x[1][0], reverse=True)
 
             for card, quantity in quantity_descending:
                 percentage = (quantity[0] / num_decks) * 100
@@ -158,7 +158,7 @@ class DeckAnalyzer:
     def __passes_whitelist_blacklist(
             self,
             search_in: list[str],
-            decklist: config.DeckEntry,
+            decklist: DeckEntry,
             whitelist: list[str],
             blacklist: list[str]
         ) -> bool:

@@ -1,12 +1,12 @@
 import gzip
 import logging
-from typing import Any
 
 import orjson as json
 import requests
 from unidecode import unidecode
 
-import config
+from mtgo_decklist_analyzer.config import SETTINGS
+from mtgo_decklist_analyzer.types import ScryfallCard
 
 logger = logging.getLogger(__name__)
 
@@ -16,32 +16,32 @@ class CardMetadata:
     def __init__(self, force_update: bool = False) -> None:
         self.data = self._load_properties(force_update)
 
-    def _load_properties(self, force: bool) -> dict[str, Any]:
+    def _load_properties(self, force: bool) -> dict[str, ScryfallCard]:
         """Load the card properties from disk. Update if missing or forced."""
-        if not config.CARD_PROPERTIES_PATH.is_file() or force:
+        if not SETTINGS.paths.card_properties.is_file() or force:
             logger.info("Updating Card Properties dataset")
             self.update_dataset()
 
-        return json.loads(config.CARD_PROPERTIES_PATH.read_bytes())
+        return json.loads(SETTINGS.paths.card_properties.read_bytes())
 
     def update_dataset(self) -> None:
         """Call the Scryfall API to update the local cache of card metadata."""
-        res = requests.get(config.SCRYFALL_BULK_DATA_URL, timeout=config.SCRYFALL_CATALOG_TIMEOUT)
+        res = requests.get(SETTINGS.scryfall.bulk_data_url, timeout=SETTINGS.scryfall.catalog_timeout)
         res.raise_for_status()
 
         bulk_dataset_link = res.text.split("Oracle Cards")[1].split('href="')[1].split('">')[0]
-
-        res = requests.get(bulk_dataset_link, stream=True, timeout=config.SCRYFALL_BULK_DATA_TIMEOUT)
+        res = requests.get(bulk_dataset_link, stream=True, timeout=SETTINGS.scryfall.bulk_timeout)
         res.raise_for_status()
 
-        out = {}
+        out: dict[str, ScryfallCard] = {}
+
         with gzip.GzipFile(fileobj=res.raw) as f:
             for line in f:
                 c = json.loads(line)
 
                 if (
-                    c.get("set_type") in config.SCRYFALL_IGNORED_SET_TYPES
-                    or c.get("layout") in config.SCRYFALL_IGNORED_LAYOUTS
+                    c.get("set_type") in SETTINGS.scryfall.ignored_set_categories # e.g. Vanguard
+                    or c.get("layout") in SETTINGS.scryfall.ignored_card_layouts # e.g. Plane
                 ):
                     continue
 
@@ -68,5 +68,5 @@ class CardMetadata:
                     "oracle": oracle
                 }
 
-        config.CARD_PROPERTIES_PATH.write_bytes(json.dumps(out))
+        SETTINGS.paths.card_properties.write_bytes(json.dumps(out))
         logger.info("Successfully updated card properties cache")

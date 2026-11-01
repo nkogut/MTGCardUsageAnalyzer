@@ -15,8 +15,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from seleniumbase import Driver
 from unidecode import unidecode
 
-import config
-import utils
+from mtgo_decklist_analyzer.config import SETTINGS
+from mtgo_decklist_analyzer.types import StoredUrls
+from mtgo_decklist_analyzer.utils import get_dates_between_months
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class Scraper:
 
     def __init__(self, dataset_path: Path) -> None:
         self.dataset_path = dataset_path
-        self.url_file = config.DATA_DIR / f"{dataset_path.stem}{config.URLS_FILE_SUFFIX}"
+        self.url_file = SETTINGS.paths.data_dir / f"{dataset_path.stem}{SETTINGS.extensions.urls_file_suffix}"
         self.driver: WebDriver = cast(WebDriver, None)
 
     def __enter__(self) -> Self:
@@ -75,18 +76,18 @@ class Scraper:
             return
 
         dataset_name = self.dataset_path.stem
-        visited_urls = {"completed": [], "failed": [], "discarded": []}
+        visited_urls = {"complete": [], "incomplete": [], "discarded": []}
         decks = []
         daily_counts = defaultdict(Counter)
 
         logger.info(f"Scraping {len(urls)} events")
 
         for url in urls:
-            url_ending = url.replace(config.MTGO_DECKLIST_PREFIX, "")
+            url_ending = url.replace(SETTINGS.scraper.mtgo_decklist_prefix, "")
             status, content = self._fetch_decklist_elements(url, kill_failures)
             visited_urls[status].append(url_ending)
 
-            if status != "completed":
+            if status != "complete":
                 continue
 
             for decklist in content:
@@ -94,7 +95,7 @@ class Scraper:
                 decks.append(deck_dict)
 
                 timestamp = pd.to_datetime(deck_dict["date"])
-                if timestamp >= config.AGG_START_DATE:
+                if timestamp >= SETTINGS.dates.agg_start_date:
                     for card, quantity in parsed_cards.items():
                         daily_counts[timestamp][card] += quantity
 
@@ -105,18 +106,18 @@ class Scraper:
     def fetch_unprocessed_urls(self, format_name: str, date_str: str, kill_failures: bool = False) -> list[str]:
         """Fetch each URL that has not yet been processed."""
         format_name = format_name.title()
-        listing_url = f"{config.MTGO_DECKLISTS_LIST_PREFIX}{date_str}?filter={format_name}"
+        listing_url = f"{SETTINGS.scraper.mtgo_decklists_list_prefix}{date_str}?filter={format_name}"
         stored_urls = self._load_urls()
 
         try:
             self.driver.get(listing_url)
-            WebDriverWait(self.driver, config.DRIVER_TIMEOUT).until(
+            WebDriverWait(self.driver, SETTINGS.scraper.driver_timeout).until(
                 ec.presence_of_element_located((By.CLASS_NAME, "decklists-list"))
             )
         except selenium.common.exceptions.TimeoutException:
             logger.error(f"Unable to access {listing_url}. Please try again with '-retry'")
-            if date_str not in stored_urls["failed"]["listing"]:
-                stored_urls["failed"]["listing"].append(date_str)
+            if date_str not in stored_urls["incomplete"]["listing"]:
+                stored_urls["incomplete"]["listing"].append(date_str)
             self._save_urls(stored_urls)
             return []
 
@@ -125,29 +126,29 @@ class Scraper:
         if not content:
             logger.warning(f"No {format_name} decklists found at {listing_url}")
             if kill_failures:
-                if date_str not in stored_urls["failed"]["discarded"]:
-                    stored_urls["failed"]["discarded"].append(date_str)
-                if date_str in stored_urls["failed"]["listing"]:
-                    stored_urls["failed"]["listing"].remove(date_str)
-            elif date_str not in stored_urls["failed"]["listing"]:
-                stored_urls["failed"]["listing"].append(date_str)
+                if date_str not in stored_urls["incomplete"]["discarded"]:
+                    stored_urls["incomplete"]["discarded"].append(date_str)
+                if date_str in stored_urls["incomplete"]["listing"]:
+                    stored_urls["incomplete"]["listing"].remove(date_str)
+            elif date_str not in stored_urls["incomplete"]["listing"]:
+                stored_urls["incomplete"]["listing"].append(date_str)
 
             self._save_urls(stored_urls)
             return []
 
-        # Filter out urls that are already marked as not being retry candidates (completed or discarded)
+        # Filter out urls that are already marked as not being retry candidates (complete or discarded)
         found_urls = [href for elem in content if (href := elem.get_attribute("href")) is not None]
-        ignore_list = set(stored_urls["completed"] + stored_urls["failed"]["discarded"])
+        ignore_list = set(stored_urls["complete"] + stored_urls["incomplete"]["discarded"])
 
         new_urls = [
             url for url in found_urls
-            if url.replace(config.MTGO_DECKLIST_PREFIX, "") not in ignore_list
+            if url.replace(SETTINGS.scraper.mtgo_decklist_prefix, "") not in ignore_list
         ]
 
         logger.debug(f"Found {len(found_urls)} URLs for {date_str} - {len(new_urls)} are new")
 
-        if date_str in stored_urls["failed"]["listing"]:
-            stored_urls["failed"]["listing"].remove(date_str)
+        if date_str in stored_urls["incomplete"]["listing"]:
+            stored_urls["incomplete"]["listing"].remove(date_str)
 
         self._save_urls(stored_urls)
         return new_urls
@@ -155,20 +156,20 @@ class Scraper:
     def process_date_range(
             self,
             format_name: str,
-            grace: int = config.DEFAULT_GRACE_DAYS,
+            grace: int = SETTINGS.scraper.default_grace_days,
             start_date: str = "",
             end_date: str = ""
         ) -> None:
         """Scrape one or more months of data for one format, and add data to dataset_path."""
         format_name = format_name.capitalize()
-        start_date = start_date or (datetime.today() - timedelta(days=grace)).strftime(config.DATE_FMT_CLI)
-        end_date = end_date or datetime.today().strftime(config.DATE_FMT_CLI)
+        start_date = start_date or (datetime.today() - timedelta(days=grace)).strftime(SETTINGS.dates.date_fmt_cli)
+        end_date = end_date or datetime.today().strftime(SETTINGS.dates.date_fmt_cli)
 
         if start_date > end_date:
             logger.error(f"Start Date ({start_date}) comes after End Date ({end_date})")
             return
 
-        dates = utils.get_dates_between_months(start_date, end_date)
+        dates = get_dates_between_months(start_date, end_date)
         logger.debug(f"Processing date range {start_date} to {end_date} ({len(dates)} days total)")
 
         for date_str in dates:
@@ -176,33 +177,36 @@ class Scraper:
             self.process_event_urls(new_urls)
 
     def retry_backlog_urls(self, format_name: str, kill_failures: bool = False) -> None:
-        """Retry all previously failed listing and event URLs."""
+        """Retry all previously incomplete listing and event URLs."""
         urls = self._load_urls()
 
-        num_failed_events = len(urls["failed"]["event"])
-        num_failed_listings = len(urls["failed"]["listing"])
+        num_incomplete_events = len(urls["incomplete"]["event"])
+        num_incomplete_listings = len(urls["incomplete"]["listing"])
 
-        for date_str in urls["failed"]["listing"]:
+        for date_str in urls["incomplete"]["listing"]:
             new_urls = self.fetch_unprocessed_urls(format_name, date_str, kill_failures=kill_failures)
             self.process_event_urls(new_urls, kill_failures=kill_failures)
 
-        if num_failed_events > 0:
+        if num_incomplete_events > 0:
             urls = self._load_urls()
 
-        full_urls = [f"{config.MTGO_DECKLIST_PREFIX}{url_ending}" for url_ending in urls["failed"]["event"]]
+        full_urls = [
+            f"{SETTINGS.scraper.mtgo_decklist_prefix}{url_ending}"
+            for url_ending in urls["incomplete"]["event"]
+        ]
 
         if full_urls:
             self.process_event_urls(full_urls, kill_failures=kill_failures)
 
         urls = self._load_urls()
 
-        new_num_events = len(urls["failed"]["event"])
-        new_num_listings = len(urls["failed"]["listing"])
+        new_num_events = len(urls["incomplete"]["event"])
+        new_num_listings = len(urls["incomplete"]["listing"])
 
         logger.info(
             "\n--- Retry Summary ---\n"
-            f"Months retried: {num_failed_listings:03d} (Remaining: {new_num_listings:03d})\n"
-            f"Events retried: {num_failed_events:03d} (Remaining: {new_num_events:03d})\n"
+            f"Months retried: {num_incomplete_listings:03d} (Remaining: {new_num_listings:03d})\n"
+            f"Events retried: {num_incomplete_events:03d} (Remaining: {new_num_events:03d})\n"
             "---------------------"
         )
 
@@ -221,29 +225,31 @@ class Scraper:
         logger.info(f"Saving {len(new_decks)} decklists to {self.dataset_path}")
         self.dataset_path.write_bytes(json.dumps(stored_decks))
 
-    def _load_urls(self) -> dict:
+    def _load_urls(self) -> StoredUrls:
         """Load the URLs for the current dataset or initialize default URL lists."""
         if self.url_file.is_file():
             return json.loads(self.url_file.read_bytes())
 
-        return {"completed": [], "failed": {"listing": [], "event": [], "discarded": []}}
+        return {"complete": [], "incomplete": {"listing": [], "event": [], "discarded": []}}
 
-    def _save_urls(self, urls_data: dict) -> None:
+    def _save_urls(self, urls_data: StoredUrls) -> None:
         """Save the URLs dictionary to this dataset's URL file."""
         self.url_file.write_bytes(json.dumps(urls_data))
 
     def _update_urls(self, visited_urls: dict) -> None:
         """Append visited URLs and remove successful/discarded URLs from the backlog."""
         stored_urls = self._load_urls()
-        stored_urls["completed"].extend(visited_urls["completed"])
+        stored_urls["complete"].extend(visited_urls["complete"])
 
-        urls_to_drop = set(visited_urls["completed"] + visited_urls["discarded"])
-        still_failed = [url for url in stored_urls["failed"]["event"] if url not in urls_to_drop]
+        urls_to_drop = set(visited_urls["complete"] + visited_urls["discarded"])
+        still_incomplete = [url for url in stored_urls["incomplete"]["event"] if url not in urls_to_drop]
 
-        stored_urls["failed"]["event"] = list(set(still_failed + visited_urls["failed"]))
-        stored_urls["failed"]["discarded"] = list(set(stored_urls["failed"]["discarded"] + visited_urls["discarded"]))
+        stored_urls["incomplete"]["event"] = list(set(still_incomplete + visited_urls["incomplete"]))
+        stored_urls["incomplete"]["discarded"] = list(
+            set(stored_urls["incomplete"]["discarded"] + visited_urls["discarded"])
+        )
 
-        if num_errors := len(visited_urls["failed"]):
+        if num_errors := len(visited_urls["incomplete"]):
             logger.warning(
                 f"Failed to reach {num_errors} Url{'s' if num_errors > 1 else ''}. "
                 f"Please try them again with 'python scrape.py <dataset> <format> -retry'"
@@ -267,8 +273,8 @@ class Scraper:
         new_df = pd.DataFrame(rows, columns=["date", "format", "card", "count"])
         new_df = new_df.set_index(["date", "format", "card"])
 
-        if config.AGG_PLAY_RATE_PATH.exists():
-            existing_df = pd.read_parquet(config.AGG_PLAY_RATE_PATH)
+        if SETTINGS.paths.agg_play_rate.exists():
+            existing_df = pd.read_parquet(SETTINGS.paths.agg_play_rate)
             logger.debug(f"Merging {len(new_df)} new play rate records. Current count: {len(existing_df)}")
             df = pd.concat([existing_df, new_df])
         else:
@@ -276,7 +282,7 @@ class Scraper:
             df = new_df
 
         df.groupby(level=["date", "format", "card"]).sum().sort_index().to_parquet(
-            config.AGG_PLAY_RATE_PATH, compression="snappy"
+            SETTINGS.paths.agg_play_rate, compression="snappy"
         )
 
     def _fetch_decklist_elements(self, url: str, kill_failures: bool) -> tuple[str, list]:
@@ -284,7 +290,7 @@ class Scraper:
         try:
             self.driver.get(url)
 
-            WebDriverWait(self.driver, config.DRIVER_TIMEOUT).until(
+            WebDriverWait(self.driver, SETTINGS.scraper.driver_timeout).until(
                 ec.any_of(
                     ec.presence_of_element_located((By.CLASS_NAME, "decklist-item-page")),
                     ec.presence_of_element_located((By.CLASS_NAME, "decklist-title"))
@@ -300,19 +306,19 @@ class Scraper:
                     return "discarded", []
 
                 logger.warning(f"No decks found at {url}. Please retry it.")
-                return "discarded" if kill_failures else "failed", []
+                return "discarded" if kill_failures else "incomplete", []
 
             # Broken urls and those during high server load can redirect ot the montly urls page
             if self.driver.find_elements(By.CLASS_NAME, "decklists-page"):
                 logger.warning(f"Was redirected from {url}")
-                return "discarded" if kill_failures else "failed", []
+                return "discarded" if kill_failures else "incomplete", []
 
             logger.info(f"Gathering {len(content)} decks from {url}")
-            return "completed", content
+            return "complete", content
 
         except selenium.common.exceptions.TimeoutException:
             logger.warning(f"Failed to reach {url}. Please retry it.")
-            return "discarded" if kill_failures else "failed", []
+            return "discarded" if kill_failures else "incomplete", []
 
     def _parse_deck(self, decklist_text: str, url_ending: str) -> tuple[dict, dict]:
         """Parse raw text from a deck element into a dict and card frequency count."""
@@ -329,13 +335,13 @@ class Scraper:
         parsed_cards = {}
         is_mainboard = True
 
-        for i in range(config.DECK_START_INDEX, len(deck_contents)):
+        for i in range(SETTINGS.scraper.deck_start_index, len(deck_contents)):
             if "Sideboard" in deck_contents[i]:
                 is_mainboard = False
                 continue
 
-            # Skip section headers (e.g. "Planeswalkers (3)")
-            for t in config.CARD_TYPE_SEPARATORS:
+            # Skip section header rows (e.g. "Planeswalkers (3)")
+            for t in SETTINGS.scraper.card_type_separators:
                 if t in deck_contents[i]:
                     break
             else:

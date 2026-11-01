@@ -1,0 +1,59 @@
+[lands]
+
+shocklands = [
+    "Hallowed Fountain", "Godless Shrine", "Sacred Foundry", "Temple Garden", "Watery Grave", "Steam Vents",
+    "Breeding Pool", "Blood Crypt", "Overgrown Tomb", "Stomping Ground"
+]
+
+fetchlands = [
+    "Flooded Strand", "Marsh Flats", "Arid Mesa", "Windswept Heath", "Polluted Delta", "Scalding Tarn",
+    "Misty Rainforest", "Bloodstained Mire", "Verdant Catacombs", "Wooded Foothills"
+]
+
+basic_lands = ["Plains", "Island", "Swamp", "Mountain", "Forest"]
+
+[modern]
+exile_removal = [
+    "Path to Exile", "Leyline Binding", "Celestial Purge", "Prismatic Ending", "Dispatch", "Vanishing Verse",
+    "March of Otherworldly Light"
+]
+
+wraths = [
+    "Supreme Verdict", "Damn", "Wrath of the Skies", "Kozilek's Return", "Pyroclasm", "Hurkyl's Recall", "Whipflare"
+]
+
+all_creature_removal = [
+    "Supreme Verdict", "Damn", "Wrath of the Skies", "Kozilek's Return", "Pyroclasm", "Hurkyl's Recall", "Whipflare",
+    "Path to Exile", "Leyline Binding", "Celestial Purge", "Prismatic Ending", "Dispatch", "Vanishing Verse",
+    "March of Otherworldly Light", "Fatal Push", "Dismember", "Lightning Bolt", "Unholy Heat", "Sheoldred's Edict",
+    "Flare of Malice"
+]
+
+artifact_hate = ["Meltdown", "Shattering Spree", "Disenchant", "Force of Vigor"]
+
+counters = [
+    "Counterspell", "Spell Pierce", "Stubborn Denial", "Stern Scolding", "Force of Negation", "Flare of Denial",
+    "Remand", "Reprieve", "Flusterstorm", "Consign to Memory", "No More Lies"
+]
+
+graveyard_hate = [
+    "Leyline of the Void", "Surgical Extraction", "Unlicensed Hearse", "Endurance", "Soul-Guide Lantern",
+    "Relic of Progenitus", "Rest in Peace", "Dauthi Voidwalker", "Crypt Incursion"
+]
+
+[cycles]
+mh2_elementals = ["Solitude", "Subtlety", "Grief", "Fury", "Endurance"]
+
+[metagames]
+# Representative cards for decks in a particular metagame
+
+[misc]
+
+
+
+
+
+
+
+
+

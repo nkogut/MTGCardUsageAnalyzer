@@ -1,11 +1,15 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "mtg-card-usage-analyzer"
+name = "mtgo_decklist_analyzer"
 description = "Highly specific search tools and scraper for discovering how and why Magic: the Gathering decks run specific cards in a given metagame."
 readme = "README.md"
 keywords = ["Magic: The Gathering", "MTG", "MTGO", "Deckbuilding"]
 authors = [{name = "Nick Kogut", email="nkogut4444@gmail.com"}]
 
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dynamic = ["version"]
 
 dependencies = [
@@ -84,4 +88,4 @@ reportCallInDefaultInitializer = true
 reportPropertyTypeMismatch = true
 
 [tool.setuptools.packages.find]
-exclude = ["Data*", "logs*", "Demos*", "aggregate_data*"]
+where = ["src"]
