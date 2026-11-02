@@ -1,16 +1,23 @@
 [build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
+requires = [
+    "scikit-build-core>=0.8.0",
+    "nanobind>=2.0.0",
+    "cmake>=3.28"
+]
+build-backend = "scikit_build_core.build"
+
+[tool.scikit-build]
+cmake.build-type = "Debug"
 
 [project]
 name = "mtgo_decklist_analyzer"
+version = "1.2.0"
 description = "Highly specific search tools and scraper for discovering how and why Magic: the Gathering decks run specific cards in a given metagame."
 readme = "README.md"
 keywords = ["Magic: The Gathering", "MTG", "MTGO", "Deckbuilding"]
 authors = [{name = "Nick Kogut", email="nkogut4444@gmail.com"}]
 
 requires-python = ">=3.13"
-dynamic = ["version"]
 
 dependencies = [
     "requests>=2.32.2",
@@ -23,6 +30,10 @@ dependencies = [
     "orjson>=3.10",
     "unidecode>=1.4.0",
     "pyarrow>=23.0",
+
+    "scikit-build-core>=0.8.0",
+    "nanobind>=2.0.0",
+    "cmake>=3.28"
 ]
 
 [project.optional-dependencies]
