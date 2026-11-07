@@ -2,12 +2,11 @@
 requires = [
     "scikit-build-core>=0.8.0",
     "nanobind>=2.0.0",
-    "cmake>=3.28"
 ]
 build-backend = "scikit_build_core.build"
 
 [tool.scikit-build]
-cmake.build-type = "Debug"
+cmake.build-type = "Release"
 
 [project]
 name = "mtgo_decklist_analyzer"
@@ -32,8 +31,7 @@ dependencies = [
     "pyarrow>=23.0",
 
     "scikit-build-core>=0.8.0",
-    "nanobind>=2.0.0",
-    "cmake>=3.28"
+    "nanobind>=2.0.0"
 ]
 
 [project.optional-dependencies]

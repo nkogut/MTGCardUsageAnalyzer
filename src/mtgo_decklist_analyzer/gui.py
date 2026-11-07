@@ -234,25 +234,21 @@ class AnalyzerGUI:
         self.search_params["player"] = player_input if player_input else None
         return True
 
-    def _query_decks(self) -> DeckEntries | None:
-        """Fetch decks from the analyzer matching current GUI parameters."""
+    def _query_decks(self, return_decks: bool = False) -> DeckEntries | None:
         if self._update_search_params():
-            return self.analyzer.query_decks(self.search_params)
+            return self.analyzer.query_decks(self.search_params, return_decks=return_decks)
         return None
 
     def _analyze_decks(self) -> None:
-        """Generate and display a card frequency report."""
         if (decks := self._query_decks()) is not None:
-            self._update_output(self.analyzer.generate_card_frequency_report(decks))
+            self._update_output(self.analyzer.generate_card_frequency_report())
 
     def _show_decks(self) -> None:
-        """Generate and display a decklist report."""
-        if (decks := self._query_decks()) is not None:
+        if (decks := self._query_decks(return_decks=True)) is not None:
             self._update_output(self.analyzer.generate_decklist_report(decks))
 
     def _generate_chart(self) -> None:
-        """Generate a historical prevalence graph based on selected cards."""
-        if (decks := self._query_decks()) is not None:
+        if (decks := self._query_decks(return_decks=True)) is not None:
             input_chart = self._parse_card_name_list(self.chart_entry.get())
             cards = input_chart if input_chart else self.card_groups[self.chart_dropdown_value.get()]
             create_line_chart(considered_decks=decks, cards=cards)
