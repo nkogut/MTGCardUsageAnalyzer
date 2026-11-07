@@ -21,6 +21,16 @@ set(RAPIDJSON_BUILD_TESTS OFF CACHE BOOL "Disable RapidJSON tests" FORCE)
 
 FetchContent_MakeAvailable(rapidjson)
 
+FetchContent_Declare(
+    mimalloc
+    URL https://github.com/microsoft/mimalloc/archive/refs/tags/v2.1.7.zip
+)
+set(MI_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(MI_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+set(MI_BUILD_OBJECT OFF CACHE BOOL "" FORCE)
+set(MI_OVERRIDE ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(mimalloc)
+
 set(CORE_SOURCES
     src/cpp/deck_parser.cpp
     src/cpp/utils.cpp
@@ -32,6 +42,7 @@ find_package(nanobind CONFIG REQUIRED)
 nanobind_add_module(_deck_sax src/cpp/bindings.cpp ${CORE_SOURCES})
 install(TARGETS _deck_sax LIBRARY DESTINATION mtgo_decklist_analyzer)
 
+target_link_libraries(_deck_sax PRIVATE mimalloc-static)
 target_include_directories(_deck_sax PRIVATE src/cpp ${rapidjson_SOURCE_DIR}/include)
 target_compile_definitions(_deck_sax PRIVATE RAPIDJSON_SSE42)
 

@@ -5,6 +5,7 @@
 #include <nanobind/stl/pair.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
+#include <iostream>
 #include "deck_parser.hpp"
 
 namespace nb = nanobind;
@@ -30,7 +31,9 @@ NB_MODULE(_deck_sax, m) {
 
         // Return a json string to python containing the filtered decks - only if needed for downstream tasks
         rapidjson::StringBuffer buffer;
-        buffer.Reserve(1024 * 1024 * 32);
+
+        // Empirically entries from modern decks are 700-750 bytes on average
+        buffer.Reserve(std::max<size_t>(1024 * 64, entries.size() * 750));
         rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
 
         writer.StartArray();

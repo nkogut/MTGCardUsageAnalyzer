@@ -2,11 +2,11 @@
 #include <rapidjson/error/en.h>
 #include <iostream>
 #include <filesystem>
-#include <sstream>
 #include <algorithm>
-#include <iomanip>
 #include "deck_parser.hpp"
 #include "utils.hpp"
+#include <mimalloc-new-delete.h>
+#include <format>
 
 #ifdef _MSC_VER
 #define STRNICMP _strnicmp
@@ -56,6 +56,7 @@ EntryFilters::EntryFilters(time_t start_date, time_t end_date, std::string&& pla
     if (!use_card_blacklist) [[likely]] return false;
     for (const std::string_view blacklisted_card : card_view_blacklist) {
         if (card.length() == blacklisted_card.length() &&
+            (card.front() | 0x20) == (blacklisted_card.front() | 0x20) &&
             STRNICMP(card.data(), blacklisted_card.data(), card.length()) == 0) return true;
     }
     return false;
@@ -154,28 +155,30 @@ struct SaxHandler : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>, SaxHa
     bool Uint(unsigned i) {
         if (to_skip()) return true;
 
-        // Log that i copies of this card were encountered while parsing
-        // Find a staged instance of the card if it exists.
-        // Then update/insert a temporary entry containing counts from instances of the card in all deck areas
-        auto it = std::lower_bound(card_count_stage.begin(), card_count_stage.end(), current_card_view,
-        [](const std::pair<std::string_view, staged_card_count>& element, std::string_view value) {
-            return element.first < value;
-        });
-
-        // If it doesn't exist, insert it in place
-        if (it == card_count_stage.end() || it->first != current_card_view) {
-            it = card_count_stage.insert(it, {current_card_view, staged_card_count{0, 0, 0, 0}});
+        // Reverse linear search to check if the card is already staged
+        for (auto& stage_entry : card_count_stage) {
+            if (stage_entry.first == current_card_view) {
+                if (current_location == MAIN) {
+                    stage_entry.second.main_count += i;
+                    stage_entry.second.num_main_decks = 1;
+                } else if (current_location == SIDE) {
+                    stage_entry.second.side_count += i;
+                    stage_entry.second.num_side_boards = 1;
+                }
+                return true;
+            }
         }
 
-        // Update counts
-        auto& counts = it->second;
+        // Append a new card to the end
+        staged_card_count counts{0, 0, 0, 0};
         if (current_location == MAIN) {
-            counts.main_count += i;
+            counts.main_count = i;
             counts.num_main_decks = 1;
         } else if (current_location == SIDE) {
-            counts.side_count += i;
+            counts.side_count = i;
             counts.num_side_boards = 1;
         }
+        card_count_stage.emplace_back(current_card_view, counts);
 
         return true;
     }
@@ -207,7 +210,7 @@ struct SaxHandler : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>, SaxHa
                 // Create a new entry for this card if it has not appeared for this time bucket yet
                 auto it = card_counts.find(name);
                 if (it == card_counts.end()) [[unlikely]] {
-                    it = card_counts.try_emplace(std::string(name)).first;
+                    it = card_counts.emplace(std::string(name), card_count{}).first;
                 }
 
                 auto& card_entry = it->second;
@@ -225,9 +228,10 @@ struct SaxHandler : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>, SaxHa
                 }
             }
 
-            // Construct a new entry to store. Don't std::move this one in order to maintain its reserved memory
-            entries.push_back(curr_entry);
+            entries.push_back(std::move(curr_entry));
             clear_entry();
+            curr_entry.main.reserve(28);
+            curr_entry.side.reserve(12);
         }
         return true;
     }
@@ -241,6 +245,8 @@ struct SaxHandler : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>, SaxHa
 bool get_decks(std::vector<Entry>& entries, card_count_map& card_counts, const std::filesystem::path& ds_path,
     const time_t start_date, const time_t end_date, std::string player, std::vector<std::string> whitelist,
     std::vector<std::string> blacklist) {
+    card_counts.reserve(8192);
+    entries.reserve(65536);
 
     FILE* fp;
     #if defined(_WIN32)
@@ -307,19 +313,19 @@ std::string format_frequencies(const card_count_map& card_counts, deck_location 
         return total_qty_a > total_qty_b;
     });
 
-    std::ostringstream oss;
-    oss << "\n--- " << sorted_vec.size() << (location == MAIN ? " Maindeck" : " Sideboard")
-        << " cards across " << num_decks << " decks ---\n";
+    std::string report = std::format("\n--- {} {} cards across {} decks ---\n",
+        sorted_vec.size(),
+        (location == MAIN ? "Maindeck" : "Sideboard"),
+        num_decks);
 
-    oss << std::left << std::setw(33) << "Card"
-        << " ||| " << std::setw(6) << "%Decks"
-        << " | " << std::right << std::setw(5) << "Qty\n";
+    report += std::format("{:<33} ||| {:>6} | {:>5}\n", "Card", "%Decks", "Qty");
 
     char name_buf[128];
 
     for (const auto* card_entry : sorted_vec) {
         size_t len = card_entry->first.copy(name_buf, sizeof(name_buf) - 1);
         titleCase(name_buf, len);
+        name_buf[len] = '\0';
 
         uint32_t decks = (location == MAIN) ? card_entry->second.num_main_decks : card_entry->second.num_side_boards;
         uint32_t qty = (location == MAIN) ? card_entry->second.main_count : card_entry->second.side_count;
@@ -328,10 +334,8 @@ std::string format_frequencies(const card_count_map& card_counts, deck_location 
         float pct_decks = (num_decks_float / static_cast<float>(num_decks)) * 100.0f;
         float avg_q = (static_cast<float>(qty) / num_decks_float);
 
-        oss << std::left << std::setw(33) << name_buf
-            << std::right << std::fixed << std::setprecision(2)
-            << " ||| " << std::setw(6) << pct_decks
-            << " | " << std::setw(5) << avg_q << "\n";
+        report += std::format("{:<33} ||| {:>6.2f} | {:>5.2f}\n", name_buf, pct_decks, avg_q);
     }
-    return oss.str();
+
+    return report;
 }
