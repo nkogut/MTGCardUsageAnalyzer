@@ -114,27 +114,25 @@ struct SaxHandler : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>, SaxHa
     }
 
     bool Key(const char* str, rapidjson::SizeType length, bool copy) {
-        if (to_skip()) return true;
+    if (to_skip()) return true;
 
-        if (current_location != NONE) {
-            active_key = JsonKey::CARD_NAME;
-            current_card_view = std::string_view(str, length);
-            if (filters.card_is_blacklisted(current_card_view)) skip_depth = 1;
-            else filters.update_whitelist_matches(current_card_view, whitelist_matches);
-            return true;
-        }
-
-        // Parse the key
-        switch (str[0]) {
-            case 'd': active_key = JsonKey::DATE; break;
-            case 'm': active_key = JsonKey::MAIN; break;
-            case 's': active_key = JsonKey::SIDE; break;
-            case 'p': active_key = JsonKey::PLAYER; break;
-            case 'u': active_key = JsonKey::URL; break;
-            default:  active_key = JsonKey::UNKNOWN; break;
-        }
+    if (current_location != NONE) [[likely]] {
+        current_card_view = std::string_view(str, length);
+        if (filters.use_card_blacklist && filters.card_is_blacklisted(current_card_view)) skip_depth = 1;
+        else if (filters.use_card_whitelist) filters.update_whitelist_matches(current_card_view, whitelist_matches);
         return true;
     }
+
+    switch (str[0]) {
+        case 'm': active_key = JsonKey::MAIN; break;
+        case 's': active_key = JsonKey::SIDE; break;
+        case 'd': active_key = JsonKey::DATE; break;
+        case 'p': active_key = JsonKey::PLAYER; break;
+        case 'u': active_key = JsonKey::URL; break;
+        default:  active_key = JsonKey::UNKNOWN; break;
+    }
+    return true;
+}
 
     bool String(const char* str, rapidjson::SizeType length, bool copy) {
         if (to_skip()) return true;
@@ -152,36 +150,34 @@ struct SaxHandler : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>, SaxHa
         return true;
     }
 
-    bool Uint(unsigned i) {
-        if (to_skip()) return true;
+bool Uint(unsigned i) {
+    if (to_skip()) return true;
 
-        // Reverse linear search to check if the card is already staged
-        for (auto& stage_entry : card_count_stage) {
-            if (stage_entry.first == current_card_view) {
-                if (current_location == MAIN) {
-                    stage_entry.second.main_count += i;
-                    stage_entry.second.num_main_decks = 1;
-                } else if (current_location == SIDE) {
-                    stage_entry.second.side_count += i;
-                    stage_entry.second.num_side_boards = 1;
-                }
-                return true;
+    for (auto it = card_count_stage.rbegin(); it != card_count_stage.rend(); ++it) {
+        if (it->first == current_card_view) {
+            if (current_location == MAIN) {
+                it->second.main_count += i;
+                it->second.num_main_decks = 1;
+            } else if (current_location == SIDE) {
+                it->second.side_count += i;
+                it->second.num_side_boards = 1;
             }
+            return true;
         }
-
-        // Append a new card to the end
-        staged_card_count counts{0, 0, 0, 0};
-        if (current_location == MAIN) {
-            counts.main_count = i;
-            counts.num_main_decks = 1;
-        } else if (current_location == SIDE) {
-            counts.side_count = i;
-            counts.num_side_boards = 1;
-        }
-        card_count_stage.emplace_back(current_card_view, counts);
-
-        return true;
     }
+
+    staged_card_count counts{0, 0, 0, 0};
+    if (current_location == MAIN) {
+        counts.main_count = i;
+        counts.num_main_decks = 1;
+    } else if (current_location == SIDE) {
+        counts.side_count = i;
+        counts.num_side_boards = 1;
+    }
+    card_count_stage.emplace_back(current_card_view, counts);
+
+    return true;
+}
 
     bool StartObject() {
         if (to_skip()) { skip_depth++; return true; }

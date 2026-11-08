@@ -47,7 +47,9 @@ target_include_directories(_deck_sax PRIVATE src/cpp ${rapidjson_SOURCE_DIR}/inc
 target_compile_definitions(_deck_sax PRIVATE RAPIDJSON_SSE42)
 
 if(MSVC)
-    target_compile_options(_deck_sax PRIVATE /permissive- /O2 /arch:AVX2)
+    target_compile_options(_deck_sax PRIVATE /permissive- /O2 /arch:AVX2 /Zi)
+    target_link_options(_deck_sax PRIVATE /DEBUG:FULL /OPT:REF /OPT:ICF)
+    install(FILES $<TARGET_PDB_FILE:_deck_sax> DESTINATION mtgo_decklist_analyzer OPTIONAL)
 else()
     target_compile_options(_deck_sax PRIVATE -O3 -msse4.2)
 endif()

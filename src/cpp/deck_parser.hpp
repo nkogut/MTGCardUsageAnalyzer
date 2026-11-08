@@ -8,11 +8,43 @@
 
 struct StringHash {
     using is_transparent = void;
+
+    static inline size_t mum_hash_64(const char* data, size_t len) noexcept {
+        constexpr uint64_t P1 = 0x9ddfea08eb382d69ULL;
+        constexpr uint64_t P2 = 0x8cb92ba72f3d8dd7ULL;
+
+        uint64_t h = len * P1;
+
+        if (len <= 8) {
+            uint64_t v = 0;
+            std::memcpy(&v, data, len);
+            return (h ^ v) * P2;
+        }
+
+        if (len <= 16) {
+            uint64_t a, b;
+            std::memcpy(&a, data, 8);
+            std::memcpy(&b, data + len - 8, 8);
+            return (h ^ a) * P1 + (b * P2);
+        }
+
+        // For card names larger than 16 chars: read 8 bytes each from start, middle, and end
+        uint64_t a, b, c;
+        std::memcpy(&a, data, 8);
+        std::memcpy(&b, data + (len >> 1) - 4, 8);
+        std::memcpy(&c, data + len - 8, 8);
+
+        h ^= a * P1;
+        h ^= b * P2;
+        h ^= c * P1;
+        return h ^ (h >> 32);
+    }
+
     size_t operator()(std::string_view sv) const noexcept {
-        return std::hash<std::string_view>{}(sv);
+        return mum_hash_64(sv.data(), sv.length());
     }
     size_t operator()(const std::string& str) const noexcept {
-        return std::hash<std::string>{}(str);
+        return mum_hash_64(str.data(), str.length());
     }
 };
 
