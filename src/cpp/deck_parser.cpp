@@ -5,10 +5,10 @@
 #include <algorithm>
 #include "deck_parser.hpp"
 #include "utils.hpp"
-#include <mimalloc-new-delete.h>
 #include <format>
 
 #ifdef _MSC_VER
+#include <mimalloc-new-delete.h>
 #define STRNICMP _strnicmp
 #else
 #define STRNICMP strncasecmp
