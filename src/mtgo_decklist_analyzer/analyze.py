@@ -138,9 +138,9 @@ if __name__ == "__main__":
             "event_types": args.get("event") or list(SETTINGS.analyzer.default_event_types)
         }
 
-        decks = analyzer.query_decks(params)
+        decks = analyzer.query_decks(params, return_decks=bool(args.get("lists")))
 
         if args.get("lists"):
             print(analyzer.generate_decklist_report(decks))
         else:
-            print(analyzer.generate_card_frequency_report(decks, args.get("type")))
+            print(analyzer.generate_card_frequency_report())

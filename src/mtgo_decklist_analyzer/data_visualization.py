@@ -16,7 +16,7 @@ def get_card_frequency(card: str, considered_decks: DeckEntries, search_in: list
     total_decks, card_decks = Counter(), Counter()
 
     for deck in considered_decks:
-        total_decks[month := deck["date"][:7].replace("-", "/")] += 1
+        total_decks[month := datetime.fromtimestamp(deck["date"]).strftime(SETTINGS.dates.date_fmt_cli)] += 1
         if ("main" in search_in and card in deck["main"]) or ("side" in search_in and card in deck["side"]):
             card_decks[month] += 1
 
