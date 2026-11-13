@@ -11,13 +11,19 @@ data/
 logs/
 aggregate_data/
 build/
-
+_skbuild/
+dist/
 *.egg-info/
+
 *.xml
 *.bat
 *.vbs
 *.json
 *.parquet
+*.pyd
+*.so
+*.pdb
+
 
 noinclude.py
 TODO.txt
